@@ -17,7 +17,7 @@ Todas as PKs são UUID, timestamps são `timestamptz` UTC, quantidades e dinheir
 | AuditRule | code, version, enabled_by_default, parameter_schema | único `(code,version)`; catálogo global imutável por versão |
 | AuditFinding | organization_id, run_id, rule_code/version, severity, review_state, explanation, detected_at, fingerprint | FK para run e rule; único `(organization_id,run_id,fingerprint)`; índice por severidade/estado/data |
 | FindingEvidence | organization_id, finding_id, purchase_id nullable, import_row_id nullable, evidence_json | FK composta para finding e referências do mesmo tenant; ao menos um vínculo de origem |
-| AuditCase | organization_id, finding_id, assignee_membership_id nullable, status, closure_reason, opened/closed_at | FK composta; um caso ativo por finding; índice status/responsável/data |
+| AuditCase | organization_id, finding_id, assignee_membership_id nullable, status, closure_reason, opened/closed_at | FK composta; um caso por finding em todo o histórico; índice status/responsável/data |
 | CaseComment | organization_id, case_id, author_membership_id, body | FK composta; índice case/data; sem edição silenciosa |
 | AuditEvent | organization_id nullable para login pré-organização, actor_user_id nullable, action, subject_type/id, metadata allowlisted, correlation_id, occurred_at | append-only; índices tenant/data, subject/data; retenção definida |
 | AIAnalysis | organization_id, run_id nullable, finding_id nullable, model/version, schema_version, response_json, status, evidence_hash | FK composta; referência a run ou finding; índice status/data |

@@ -39,3 +39,11 @@ Objetivo: entregar primeiro a especificação coerente e depois uma fundação e
 - Fase 3: concluída na API com CSV/XLSX, prévia, mapeamento, limite de upload, hash/reimportação explícita, job persistido, linhas normalizadas com erros, compras por tenant e gerador sintético reproduzível nos quatro tamanhos. Testes PostgreSQL de fluxo e corpus adversarial passaram. A interface visual pertence à Fase 6; as regras de auditoria começam na Fase 4.
 - Fase 4: concluída na API e no worker com nove regras v1.0.0, estatística conservadora, execuções idempotentes, catálogo versionado, achados e evidências por tenant. Gabarito sintético corrigido e avaliado em 100/1k/10k/50k linhas; teste PostgreSQL cobre criação, isolamento, RBAC e consulta. Revisão humana e casos pertencem à Fase 6.
 - Fase 5: concluída na API e no worker com análises opcionais via Ollama, schema estrito, citação validada de evidências, limites de contexto, circuito de falhas e fallback explícito. Testes cobrem resposta válida, referência inventada, injeção em dados, indisponibilidade, idempotência, RBAC e isolamento; a auditoria segue independente da IA. A interface visual pertence à Fase 6.
+- Fase 6: em andamento. API de revisão, casos, comentários paginados e indicadores implementada e validada com PostgreSQL; interface das onze telas e fluxo E2E ainda pendentes.
+
+## Plano de execução da Fase 6
+
+1. Definir transições de revisão e casos; persistir casos, comentários e trilha com isolamento por organização e migração Alembic.
+2. Entregar consultas agregadas do dashboard com filtros de período e dados reais, mantendo o contrato OpenAPI sincronizado.
+3. Construir as onze telas pt-BR sobre a API existente, incluindo CSRF, RBAC, navegação, estados vazio/erro/carregamento, responsividade e teclado.
+4. Validar fluxos de API e E2E cadastro → importação → auditoria → achado → caso → resolução; executar lint, tipos, testes, build, migrações e Compose.
