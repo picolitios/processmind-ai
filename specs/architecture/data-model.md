@@ -8,6 +8,7 @@ Todas as PKs são UUID, timestamps são `timestamptz` UTC, quantidades e dinheir
 | Organization | name, slug, status, settings_version | slug único; configurações versionadas |
 | OrganizationMembership | organization_id, user_id, role, status | FK para ambos; único `(organization_id,user_id)`; role enum |
 | Session | user_id, token_hash, csrf_hash, expires_at, revoked_at | token_hash único; índice `(user_id,expires_at)`; retenção limitada |
+| LoginFailure | HMAC do email, HMAC do IP, occurred_at | índices por email/data, IP/data e data para expurgo; sem credenciais em claro |
 | ImportBatch | organization_id, uploader_id, sha256, original_name, private_storage_key, mapping, status, counts, job_id | único `(organization_id,sha256)` para importação ativa; índice `(organization_id,created_at,id)` |
 | ImportRow | organization_id, batch_id, row_number, raw_json, normalized_json, errors | FK composta para batch; único `(batch_id,row_number)`; raw com acesso restrito |
 | Supplier | organization_id, external_id, name | único `(organization_id,external_id)` |

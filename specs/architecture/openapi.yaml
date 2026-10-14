@@ -351,11 +351,11 @@ components:
     RegisterInput: { type: object, required: [email, password], properties: { email: { type: string, format: email }, password: { type: string, minLength: 12 } } }
     LoginInput: { type: object, required: [email, password], properties: { email: { type: string, format: email }, password: { type: string } } }
     SessionView: { type: object, required: [user, memberships, csrf_token], properties: { user: { $ref: '#/components/schemas/User' }, memberships: { type: array, items: { $ref: '#/components/schemas/Member' } }, csrf_token: { type: string } } }
-    Organization: { type: object, required: [id, name, slug], properties: { id: { type: string, format: uuid }, name: { type: string }, slug: { type: string }, settings_version: { type: integer } } }
+    Organization: { type: object, required: [id, name, slug, settings_version, settings], properties: { id: { type: string, format: uuid }, name: { type: string }, slug: { type: string }, settings_version: { type: integer }, settings: { type: object, additionalProperties: true } } }
     OrganizationInput: { type: object, required: [name, slug], properties: { name: { type: string, minLength: 1 }, slug: { type: string, pattern: '^[a-z0-9-]+$' } } }
-    OrganizationSettingsInput: { type: object, properties: { amount_limits: { type: object, additionalProperties: { type: string, pattern: '^\d+(\.\d{1,2})?$' } }, delay_window_days: { type: integer, minimum: 1 } } }
+    OrganizationSettingsInput: { type: object, properties: { amount_limits: { type: object, additionalProperties: { type: string, pattern: '^\d{1,18}(\.\d{1,2})?$' } }, delay_window_days: { type: integer, minimum: 1 } } }
     Role: { type: string, enum: [owner, admin, analyst, viewer] }
-    Member: { type: object, required: [user_id, role, status], properties: { user_id: { type: string, format: uuid }, role: { $ref: '#/components/schemas/Role' }, status: { type: string, enum: [active, inactive] } } }
+    Member: { type: object, required: [organization_id, user_id, role, status, created_at], properties: { organization_id: { type: string, format: uuid }, user_id: { type: string, format: uuid }, role: { $ref: '#/components/schemas/Role' }, status: { type: string, enum: [active, inactive] }, created_at: { type: string, format: date-time } } }
     MemberInput: { type: object, required: [email, role], properties: { email: { type: string, format: email }, role: { $ref: '#/components/schemas/Role' } } }
     MemberPatch: { type: object, properties: { role: { $ref: '#/components/schemas/Role' }, status: { type: string, enum: [active, inactive] } } }
     MemberPage: { type: object, required: [items, next_cursor], properties: { items: { type: array, items: { $ref: '#/components/schemas/Member' } }, next_cursor: { type: [string, 'null'] } } }

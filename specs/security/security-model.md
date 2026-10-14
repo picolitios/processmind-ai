@@ -6,7 +6,7 @@ Ativos: credenciais, sessões, arquivos originais, compras, evidências, decisõ
 
 ## Controles obrigatórios
 
-- Senhas com hash de memória e salt, verificação em tempo constante, política de tamanho e rate limit por IP/conta; mensagens de login não enumeram usuários.
+- Senhas com Argon2id, salt e política de tamanho; verificação do hash mesmo para conta ausente. Cinco falhas por conta em 15 minutos bloqueiam novas tentativas; falhas antigas são removidas após um dia. A chave HMAC para indexar contas no throttle é configurada fora do Git em produção. Mensagens de login não enumeram usuários.
 - Sessão opaca com token aleatório forte, apenas hash no banco, rotação após autenticação, expiração e revogação no logout. Cookie HttpOnly, SameSite=Lax, Path limitado e Secure fora de desenvolvimento local.
 - Mutação autenticada exige token CSRF associado à sessão e checagem de Origin; CORS restrito à origem web configurada. Não usar wildcard com credenciais.
 - RBAC no backend por associação ativa e organização explícita; ID do cliente jamais concede acesso. Testar IDs diretos, paginação, downloads, jobs, analytics e relações indiretas entre tenants.

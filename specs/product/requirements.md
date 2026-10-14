@@ -1,11 +1,11 @@
 # Requisitos e critérios de aceite
 
-IDs estáveis permitem rastrear backlog, testes e contratos. `M` indica MVP; `N` indica requisito não funcional. O status inicial é **planejado**, salvo documentação da Fase 0.
+IDs estáveis permitem rastrear backlog, testes e contratos. `M` indica MVP; `N` indica requisito não funcional. M01–M03 estão implementados na API desde a Fase 2; as telas correspondentes continuam planejadas para a Fase 6. Os demais requisitos permanecem planejados conforme o backlog.
 
 | ID | Requisito | Critério de aceite observável |
 | --- | --- | --- |
 | M01 | Cadastro, login, logout e sessão | Credenciais inválidas não criam sessão; logout revoga a sessão; cookie não é acessível por JS; tentativas excessivas são limitadas. |
-| M02 | Organizações, usuários e RBAC | Owner gerencia membros; Admin gerencia operações; Analyst audita e revisa; Viewer só lê; usuário sem associação recebe 403. |
+| M02 | Organizações, usuários e RBAC | Owner gerencia membros; Admin gerencia operações; Analyst audita e revisa; Viewer só lê; falta de papel retorna 403, e recurso de outra organização retorna 404. |
 | M03 | Isolamento | IDs de outra organização não revelam nem modificam dados, inclusive em listagens, detalhes, jobs e analytics; testes automatizados cobrem dois tenants. |
 | M04 | Upload CSV/XLSX | Arquivo dentro dos limites, formato válido e cabeçalhos mapeáveis gera importação; arquivo inválido recebe erro seguro; hash evita duplicação acidental na organização. |
 | M05 | Prévia, mapeamento e validação | Usuário confirma mapeamento antes da ingestão; erros por linha/campo são consultáveis; linhas inválidas não se tornam compras; original e normalizado permanecem rastreáveis. |

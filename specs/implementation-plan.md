@@ -28,3 +28,4 @@ Objetivo: entregar primeiro a especificação coerente e depois uma fundação e
 
 - Fase 0: concluída após revisão de contrato, cobertura de requisitos, dependências e limites de escopo.
 - Fase 1: concluída após Compose com PostgreSQL saudável, migração `0001_foundation`, liveness/readiness, web HTTP 200, testes, lint, tipos, build e auditoria npm. A CI correspondente está configurada; sua execução remota depende de um repositório Git remoto.
+- Fase 2: concluída na API com cadastro, login, sessão, logout, CSRF, organizações, membros, RBAC, throttle e testes de dois tenants. A interface dessas operações pertence à Fase 6. Testes locais com PostgreSQL e fluxo HTTP via Compose passaram; CI remota segue pendente de remoto Git.

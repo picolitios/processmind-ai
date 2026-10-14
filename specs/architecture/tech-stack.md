@@ -12,3 +12,5 @@
 | Infra | Docker Compose e GitHub Actions | Execução local e CI em limites gratuitos |
 
 Dependências adicionais devem ser justificadas em cada fase. O driver PostgreSQL, parser XLSX, hash de senha e suporte a multipart são dependências técnicas esperadas nas fases em que forem usados. Nenhuma versão de biblioteca é prometida aqui antes de ser instalada e validada.
+
+Na Fase 2, `argon2-cffi` implementa hash de senha Argon2id e `email-validator` valida endereços recebidos pelos schemas Pydantic. Essas dependências ficam apenas na API.
