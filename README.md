@@ -4,7 +4,7 @@ SaaS B2B de auditoria de compras empresariais. O MVP importa compras, aplica reg
 
 ## Estado
 
-Fases 0 a 3 concluídas. A Fase 3 entrega upload e ingestão na API, com worker local; formulários e telas de negócio integram a Fase 6. Consulte [plano](specs/implementation-plan.md) e [escopo](specs/product/mvp.md).
+Fases 0 a 4 concluídas. A Fase 4 entrega auditorias determinísticas, achados e evidências na API e no worker local; formulários e telas de negócio integram a Fase 6. Consulte [plano](specs/implementation-plan.md) e [escopo](specs/product/mvp.md).
 
 ## Requisitos locais
 
@@ -74,4 +74,10 @@ Se `processmind_test` já existir, pule apenas o comando `CREATE DATABASE`. Para
 
 Consulte `/imports/{id}/preview` para cabeçalhos e até 20 linhas; confirme em `/imports/{id}/confirm` com `{"columns":{"purchase_id":"coluna_origem", ...}}`. O worker processa até 50 mil linhas, preserva o conteúdo bruto e apresenta erros por linha em `/imports/{id}/rows`. Compras válidas ficam em `/purchases`. O resumo e histórico estão em `/imports` e `/imports/{id}`. Os campos obrigatórios estão no [contrato](specs/architecture/openapi.yaml). Datas usam ISO 8601 (`YYYY-MM-DD`), decimais usam ponto, e moeda usa código de três letras. O worker reinicia jobs interrompidos após expirar o lease; erros permanentes ficam em estado `failed` com código de erro interno no banco.
 
-Depois de atualizar o código, aplique a migração antes de iniciar o worker: `docker compose up -d db api`, `docker compose exec -T api alembic upgrade head`, `docker compose up -d worker web`. Para gerar CSV sintético e gabarito local, execute `python scripts/generate_synthetic.py --size 100 --seed 42 --output-dir synthetic-output` (tamanhos: 100, 1000, 10000, 50000). O diretório de saída é ignorado pelo Git. Esses rótulos são apenas gabarito; as regras de auditoria pertencem à Fase 4.
+Depois de atualizar o código, aplique a migração antes de iniciar o worker: `docker compose up -d db api`, `docker compose exec -T api alembic upgrade head`, `docker compose up -d worker web`. Para gerar CSV sintético e gabarito local, execute `python scripts/generate_synthetic.py --size 100 --seed 42 --output-dir synthetic-output` (tamanhos: 100, 1000, 10000, 50000). Acrescente `--xlsx` para gerar também uma planilha com o mesmo gabarito. O diretório de saída é ignorado pelo Git.
+
+## Auditoria determinística (Fase 4)
+
+Crie uma execução com `POST /api/v1/organizations/{id}/audits`, corpo `{"import_ids":["..."]}` e cabeçalhos `X-CSRF-Token` e `Idempotency-Key` (8–128 caracteres). Apenas importações concluídas da organização são aceitas. Owner/Admin/Analyst criam auditorias; Viewer consulta. O worker aplica as [nove regras versionadas](specs/architecture/audit-rules-v1.md) usando o snapshot da configuração, sem depender de IA.
+
+Consulte `/audits`, `/audits/{id}`, `/findings` e `/findings/{id}` para estado, filtros, achados e evidências. As listagens usam cursor e limite de até 100 itens. Preço sem cinco pares comparáveis fica inconclusivo; o resumo da execução informa a limitação. O [relatório de avaliação](specs/testing/audit-evaluation.md) traz TP/FP/FN para os quatro tamanhos sintéticos e pode ser reproduzido por `python scripts/evaluate_audit.py --sizes 100 1000 10000 50000 --seed 42 --assert-gates` com o ambiente Python da API. Revisão de achados e casos pertencem à Fase 6.

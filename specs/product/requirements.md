@@ -1,6 +1,6 @@
 # Requisitos e critérios de aceite
 
-IDs estáveis permitem rastrear backlog, testes e contratos. `M` indica MVP; `N` indica requisito não funcional. M01–M03 estão implementados na API desde a Fase 2; as telas correspondentes continuam planejadas para a Fase 6. Os demais requisitos permanecem planejados conforme o backlog.
+IDs estáveis permitem rastrear backlog, testes e contratos. `M` indica MVP; `N` indica requisito não funcional. M01–M07 e M13 estão implementados na API/worker nas Fases 2–4; as telas correspondentes continuam planejadas para a Fase 6. Os demais requisitos permanecem planejados conforme o backlog.
 
 | ID | Requisito | Critério de aceite observável |
 | --- | --- | --- |

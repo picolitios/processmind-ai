@@ -13,7 +13,7 @@ Todas as PKs são UUID, timestamps são `timestamptz` UTC, quantidades e dinheir
 | ImportRow | organization_id, batch_id, row_number, raw_json, normalized_json, errors | FK composta para batch; único `(batch_id,row_number)`; raw com acesso restrito |
 | Supplier | organization_id, external_id, name | único `(organization_id,external_id)` |
 | Purchase | organization_id, batch_id, import_row_id, supplier_id, external_purchase_id, product_id/name, purchase_date, quantity, unit_of_measure, unit_price, declared_total, currency, expected/actual_delivery_date | FKs compostas; `import_row_id` único; índices por produto/data, fornecedor/data e batch. IDs externos repetidos são preservados e sinalizados. |
-| AuditRun | organization_id, requester_id, status, rule_set_version, config_snapshot, started/finished_at, job_id, idempotency_key | único `(organization_id,idempotency_key)`; índice status/data |
+| AuditRun | organization_id, requester_id, status, rule_set_version, config_snapshot, import_ids, finding_count, limitation, started/finished_at, job_id, idempotency_key | único `(organization_id,idempotency_key)`; FK composta para job; índice tenant/data |
 | AuditRule | code, version, enabled_by_default, parameter_schema | único `(code,version)`; catálogo global imutável por versão |
 | AuditFinding | organization_id, run_id, rule_code/version, severity, review_state, explanation, detected_at, fingerprint | FK para run e rule; único `(organization_id,run_id,fingerprint)`; índice por severidade/estado/data |
 | FindingEvidence | organization_id, finding_id, purchase_id nullable, import_row_id nullable, evidence_json | FK composta para finding e referências do mesmo tenant; ao menos um vínculo de origem |

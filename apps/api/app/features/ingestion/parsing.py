@@ -191,11 +191,12 @@ def normalize(
             max_integer_digits = 18 if field == "total_amount" else 14
             if (
                 not decimal_value.is_finite()
-                or decimal_value <= 0
                 or (isinstance(exponent, int) and exponent < -scale)
                 or decimal_value.adjusted() >= max_integer_digits
             ):
                 raise InvalidOperation
+            if decimal_value <= 0:
+                error(field, "non_positive")
             values[field] = str(decimal_value)
         except (InvalidOperation, ValueError):
             error(field, "invalid_decimal")

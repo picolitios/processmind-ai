@@ -39,6 +39,8 @@ jobs:
         working-directory: apps/api
       - run: python ../../scripts/validate_specs.py
         working-directory: apps/api
+      - run: python ../../scripts/evaluate_audit.py --sizes 1000 --assert-gates --output-dir /tmp/processmind-eval
+        working-directory: apps/api
   web:
     runs-on: ubuntu-latest
     steps:

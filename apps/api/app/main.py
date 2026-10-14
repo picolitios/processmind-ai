@@ -17,6 +17,7 @@ from app.core.errors import (
     validation_error_handler,
 )
 from app.db.engine import make_engine
+from app.features.audit.routes import router as audit_router
 from app.features.identity.routes import auth_router, organizations_router
 from app.features.ingestion.routes import router as ingestion_router
 
@@ -35,6 +36,7 @@ app.add_exception_handler(Exception, unexpected_error_handler)
 app.include_router(auth_router)
 app.include_router(organizations_router)
 app.include_router(ingestion_router)
+app.include_router(audit_router)
 
 
 @app.middleware("http")

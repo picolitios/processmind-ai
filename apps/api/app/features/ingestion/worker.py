@@ -10,6 +10,8 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import ApiError
 from app.db.engine import make_engine
+from app.features.audit.models import AuditRun
+from app.features.audit.worker import process_audit_job
 from app.features.identity.models import AuditEvent
 from app.features.ingestion.models import ImportBatch, ImportRow, Job, Purchase, Supplier
 from app.features.ingestion.parsing import bounded_rows, normalize, table_rows
@@ -22,7 +24,7 @@ def claim_job(db: Session) -> uuid.UUID | None:
     exhausted = db.scalar(
         select(Job)
         .where(
-            Job.type == "import",
+            Job.type.in_(["import", "audit"]),
             Job.status == "running",
             Job.lease_until < datetime.now(UTC),
             Job.attempt_count >= 3,
@@ -34,19 +36,12 @@ def claim_job(db: Session) -> uuid.UUID | None:
         exhausted.status = "failed"
         exhausted.error_code = "lease_expired"
         exhausted.lease_until = None
-        batch = db.scalar(
-            select(ImportBatch).where(
-                ImportBatch.id == uuid.UUID(exhausted.payload_json["batch_id"]),
-                ImportBatch.organization_id == exhausted.organization_id,
-            )
-        )
-        if batch is not None:
-            batch.status = "failed"
+        mark_target_failed(db, exhausted)
         db.commit()
     job = db.scalar(
         select(Job)
         .where(
-            Job.type == "import",
+            Job.type.in_(["import", "audit"]),
             or_(
                 Job.status == "queued",
                 (Job.status == "running") & (Job.lease_until < datetime.now(UTC)),
@@ -99,6 +94,7 @@ def process_job(db: Session, job_id: uuid.UUID) -> None:
         raise ValueError("headers_changed")
     row_count = 0
     error_count = 0
+    seen_purchase_ids: set[str] = set()
     for number, values in rows:
         raw = dict(zip(headers, values, strict=False))
         normalized, errors = normalize(raw, mapping)
@@ -106,6 +102,17 @@ def process_job(db: Session, job_id: uuid.UUID) -> None:
             errors.append(
                 {"field": "_row", "code": "column_count", "message": "Número de colunas inválido"}
             )
+        external_id = normalized.get("purchase_id", "")
+        if external_id and external_id in seen_purchase_ids:
+            errors.append(
+                {
+                    "field": "purchase_id",
+                    "code": "duplicate_id",
+                    "message": "ID de compra repetido nesta importação",
+                }
+            )
+        elif external_id:
+            seen_purchase_ids.add(external_id)
         row = ImportRow(
             organization_id=batch.organization_id,
             batch_id=batch.id,
@@ -193,13 +200,42 @@ def process_job(db: Session, job_id: uuid.UUID) -> None:
     db.commit()
 
 
+def mark_target_failed(db: Session, job: Job) -> None:
+    if job.type == "import":
+        batch = db.scalar(
+            select(ImportBatch).where(
+                ImportBatch.id == uuid.UUID(job.payload_json["batch_id"]),
+                ImportBatch.organization_id == job.organization_id,
+            )
+        )
+        if batch is not None:
+            batch.status = "failed"
+    elif job.type == "audit":
+        run = db.scalar(
+            select(AuditRun).where(
+                AuditRun.id == uuid.UUID(job.payload_json["audit_id"]),
+                AuditRun.organization_id == job.organization_id,
+            )
+        )
+        if run is not None:
+            run.status = "failed"
+            run.finished_at = datetime.now(UTC)
+            run.limitation = f"Falha no processamento ({job.error_code or 'unknown'})."
+
+
 def run_once() -> bool:
     with Session(make_engine()) as db:
         job_id = claim_job(db)
         if job_id is None:
             return False
         try:
-            process_job(db, job_id)
+            job = db.get(Job, job_id)
+            if job is None:
+                return True
+            if job.type == "audit":
+                process_audit_job(db, job_id)
+            else:
+                process_job(db, job_id)
         except Exception as exc:
             logger.exception("Import job failed: %s", type(exc).__name__)
             db.rollback()
@@ -209,14 +245,26 @@ def run_once() -> bool:
                 job.status = "failed" if permanent or job.attempt_count >= 3 else "queued"
                 job.error_code = exc.code if isinstance(exc, ApiError) else type(exc).__name__[:80]
                 job.lease_until = None
-                batch = db.scalar(
-                    select(ImportBatch).where(
-                        ImportBatch.id == uuid.UUID(job.payload_json["batch_id"]),
-                        ImportBatch.organization_id == job.organization_id,
+                if job.status == "failed":
+                    mark_target_failed(db, job)
+                elif job.type == "import":
+                    batch = db.scalar(
+                        select(ImportBatch).where(
+                            ImportBatch.id == uuid.UUID(job.payload_json["batch_id"]),
+                            ImportBatch.organization_id == job.organization_id,
+                        )
                     )
-                )
-                if batch is not None:
-                    batch.status = job.status
+                    if batch is not None:
+                        batch.status = "queued"
+                elif job.type == "audit":
+                    run = db.scalar(
+                        select(AuditRun).where(
+                            AuditRun.id == uuid.UUID(job.payload_json["audit_id"]),
+                            AuditRun.organization_id == job.organization_id,
+                        )
+                    )
+                    if run is not None:
+                        run.status = "queued"
                 db.commit()
     return True
 

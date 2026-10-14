@@ -19,6 +19,7 @@ HEADERS = (
 )
 VALID = "P-1,S-1,2025-01-01,SKU-1,2,10.00,BRL,20.00\n"
 INVALID = "P-2,S-1,2025-01-02,SKU-1,bad,10.00,BRL,20.00\n"
+REPEATED_ID = "P-1,S-2,2025-01-03,SKU-2,1,10.00,BRL,10.00\n"
 
 
 @pytest.mark.skipif(os.getenv("RUN_DB_TESTS") != "1", reason="PostgreSQL required")
@@ -36,7 +37,7 @@ def test_upload_confirm_worker_rows_and_isolation(
             second, second.get("/api/v1/auth/session").json()["csrf_token"], "other-org"
         )
         path = f"/api/v1/organizations/{org_id}/imports"
-        payload = (HEADERS + VALID + INVALID).encode()
+        payload = (HEADERS + VALID + INVALID + REPEATED_ID).encode()
         response = first.post(
             path,
             headers={**csrf_headers(token), "Idempotency-Key": uuid.uuid4().hex},
@@ -55,6 +56,7 @@ def test_upload_confirm_worker_rows_and_isolation(
         assert first.get(f"{path}/{import_id}/preview").json()["rows"] == [
             VALID.strip().split(","),
             INVALID.strip().split(","),
+            REPEATED_ID.strip().split(","),
         ]
         mapping = {key: key for key in HEADERS.strip().split(",")}
         confirmed = first.post(
@@ -66,11 +68,12 @@ def test_upload_confirm_worker_rows_and_isolation(
         assert run_once()
         summary = first.get(f"{path}/{import_id}").json()
         assert summary["status"] == "succeeded"
-        assert (summary["row_count"], summary["error_count"]) == (2, 1)
+        assert (summary["row_count"], summary["error_count"]) == (3, 2)
         rows = first.get(f"{path}/{import_id}/rows").json()["items"]
-        assert len(rows) == 2
+        assert len(rows) == 3
         assert rows[0]["errors"] == []
         assert rows[1]["errors"][0]["field"] == "quantity"
+        assert rows[2]["errors"][0]["code"] == "duplicate_id"
         purchases = first.get(
             f"/api/v1/organizations/{org_id}/purchases", params={"import_id": import_id}
         ).json()["items"]

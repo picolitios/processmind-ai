@@ -24,9 +24,17 @@ Objetivo: entregar primeiro a especificação coerente e depois uma fundação e
 
 `B03` e `B02` podem avançar em paralelo após `B01`. `B10` não depende de Ollama. O fluxo E2E exige `B09` e `B10`. Dependências pós-MVP ficam em `mvp.md`, sem tickets de implementação antecipada.
 
+## Plano de execução da Fase 4
+
+1. Corrigir o gabarito sintético e a validação de ID de compra repetido, alinhando a entrada à regra DUPLICATE.
+2. Versionar as nove regras e seus limites; criar `AuditRun`, catálogo de regras, achados e evidências com FKs por organização.
+3. Expor criação idempotente e consultas paginadas; executar auditoria no worker persistido, com snapshot da configuração.
+4. Testar regras, isolamento, idempotência e gabarito; validar migração, lint, tipos, testes e Compose. Nenhuma interface de casos ou IA entra nesta fase.
+
 ## Estado
 
 - Fase 0: concluída após revisão de contrato, cobertura de requisitos, dependências e limites de escopo.
 - Fase 1: concluída após Compose com PostgreSQL saudável, migração `0001_foundation`, liveness/readiness, web HTTP 200, testes, lint, tipos, build e auditoria npm. A CI correspondente está configurada; sua execução remota depende de um repositório Git remoto.
 - Fase 2: concluída na API com cadastro, login, sessão, logout, CSRF, organizações, membros, RBAC, throttle e testes de dois tenants. A interface dessas operações pertence à Fase 6. Testes locais com PostgreSQL e fluxo HTTP via Compose passaram; CI remota segue pendente de remoto Git.
 - Fase 3: concluída na API com CSV/XLSX, prévia, mapeamento, limite de upload, hash/reimportação explícita, job persistido, linhas normalizadas com erros, compras por tenant e gerador sintético reproduzível nos quatro tamanhos. Testes PostgreSQL de fluxo e corpus adversarial passaram. A interface visual pertence à Fase 6; as regras de auditoria começam na Fase 4.
+- Fase 4: concluída na API e no worker com nove regras v1.0.0, estatística conservadora, execuções idempotentes, catálogo versionado, achados e evidências por tenant. Gabarito sintético corrigido e avaliado em 100/1k/10k/50k linhas; teste PostgreSQL cobre criação, isolamento, RBAC e consulta. Revisão humana e casos pertencem à Fase 6.
