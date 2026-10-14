@@ -10,6 +10,8 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import ApiError
 from app.db.engine import make_engine
+from app.features.ai.models import AIAnalysis
+from app.features.ai.worker import process_ai_job
 from app.features.audit.models import AuditRun
 from app.features.audit.worker import process_audit_job
 from app.features.identity.models import AuditEvent
@@ -24,7 +26,7 @@ def claim_job(db: Session) -> uuid.UUID | None:
     exhausted = db.scalar(
         select(Job)
         .where(
-            Job.type.in_(["import", "audit"]),
+            Job.type.in_(["import", "audit", "ai"]),
             Job.status == "running",
             Job.lease_until < datetime.now(UTC),
             Job.attempt_count >= 3,
@@ -41,7 +43,7 @@ def claim_job(db: Session) -> uuid.UUID | None:
     job = db.scalar(
         select(Job)
         .where(
-            Job.type.in_(["import", "audit"]),
+            Job.type.in_(["import", "audit", "ai"]),
             or_(
                 Job.status == "queued",
                 (Job.status == "running") & (Job.lease_until < datetime.now(UTC)),
@@ -221,6 +223,16 @@ def mark_target_failed(db: Session, job: Job) -> None:
             run.status = "failed"
             run.finished_at = datetime.now(UTC)
             run.limitation = f"Falha no processamento ({job.error_code or 'unknown'})."
+    elif job.type == "ai":
+        analysis = db.scalar(
+            select(AIAnalysis).where(
+                AIAnalysis.id == uuid.UUID(job.payload_json["analysis_id"]),
+                AIAnalysis.organization_id == job.organization_id,
+            )
+        )
+        if analysis is not None:
+            analysis.status = "failed"
+            analysis.limitation = "Falha no processamento da IA. A auditoria permanece disponível."
 
 
 def run_once() -> bool:
@@ -234,10 +246,12 @@ def run_once() -> bool:
                 return True
             if job.type == "audit":
                 process_audit_job(db, job_id)
+            elif job.type == "ai":
+                process_ai_job(db, job_id)
             else:
                 process_job(db, job_id)
         except Exception as exc:
-            logger.exception("Import job failed: %s", type(exc).__name__)
+            logger.exception("Job failed: %s", type(exc).__name__)
             db.rollback()
             job = db.get(Job, job_id)
             if job is not None:
@@ -265,6 +279,15 @@ def run_once() -> bool:
                     )
                     if run is not None:
                         run.status = "queued"
+                elif job.type == "ai":
+                    analysis = db.scalar(
+                        select(AIAnalysis).where(
+                            AIAnalysis.id == uuid.UUID(job.payload_json["analysis_id"]),
+                            AIAnalysis.organization_id == job.organization_id,
+                        )
+                    )
+                    if analysis is not None:
+                        analysis.status = "queued"
                 db.commit()
     return True
 

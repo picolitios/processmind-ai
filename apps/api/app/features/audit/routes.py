@@ -65,6 +65,7 @@ def finding_view(finding: AuditFinding, evidence: list[FindingEvidence]) -> dict
         "explanation": finding.explanation,
         "evidence": [
             {
+                "id": item.id,
                 "type": "purchase" if item.purchase_id else "import_row",
                 "purchase_id": item.purchase_id,
                 "import_row_id": item.import_row_id,

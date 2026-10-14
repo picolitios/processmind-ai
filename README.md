@@ -81,3 +81,9 @@ Depois de atualizar o código, aplique a migração antes de iniciar o worker: `
 Crie uma execução com `POST /api/v1/organizations/{id}/audits`, corpo `{"import_ids":["..."]}` e cabeçalhos `X-CSRF-Token` e `Idempotency-Key` (8–128 caracteres). Apenas importações concluídas da organização são aceitas. Owner/Admin/Analyst criam auditorias; Viewer consulta. O worker aplica as [nove regras versionadas](specs/architecture/audit-rules-v1.md) usando o snapshot da configuração, sem depender de IA.
 
 Consulte `/audits`, `/audits/{id}`, `/findings` e `/findings/{id}` para estado, filtros, achados e evidências. As listagens usam cursor e limite de até 100 itens. Preço sem cinco pares comparáveis fica inconclusivo; o resumo da execução informa a limitação. O [relatório de avaliação](specs/testing/audit-evaluation.md) traz TP/FP/FN para os quatro tamanhos sintéticos e pode ser reproduzido por `python scripts/evaluate_audit.py --sizes 100 1000 10000 50000 --seed 42 --assert-gates` com o ambiente Python da API. Revisão de achados e casos pertencem à Fase 6.
+
+## Explicações opcionais com IA (Fase 5)
+
+Configure um Ollama local e baixe o modelo indicado em `OLLAMA_MODEL` (padrão `gemma3:4b`). No Compose, o worker acessa `OLLAMA_BASE_URL=http://host.docker.internal:11434`; fora do Compose, use `http://127.0.0.1:11434`. `OLLAMA_TIMEOUT_SECONDS` controla o tempo máximo por análise. A auditoria funciona mesmo sem Ollama.
+
+Depois de uma auditoria concluída, envie `POST /api/v1/organizations/{id}/ai/analyses` com `{"finding_id":"..."}` ou `{"audit_id":"..."}`, sessão, CSRF e `Idempotency-Key`. A resposta contém `analysis_id`; consulte `GET /ai/analyses/{analysis_id}`. Resultados citam apenas IDs presentes nas evidências dos achados; falhas retornam `status=failed` e `limitation`, sem modificar a auditoria. Consulte os [limites e critérios](specs/architecture/ai-explanations-v1.md).

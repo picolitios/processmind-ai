@@ -5,6 +5,7 @@ from sqlalchemy import engine_from_config, pool
 
 from app.core.config import settings
 from app.db.base import Base
+from app.features.ai import models as ai_models  # noqa: F401
 from app.features.audit import models as audit_models  # noqa: F401
 from app.features.identity import models  # noqa: F401
 from app.features.ingestion import models as ingestion_models  # noqa: F401

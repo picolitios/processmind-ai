@@ -1,4 +1,8 @@
+import io
+import json
 import os
+import urllib.error
+import urllib.request
 import uuid
 from pathlib import Path
 
@@ -145,3 +149,140 @@ def test_audit_idempotency_findings_and_tenant_isolation(
             params={"audit_id": audit_id, "limit": 1, "cursor": first_page["next_cursor"]},
         ).json()
         assert next_page["items"][0]["id"] != first_page["items"][0]["id"]
+
+        evidence_id = duplicate["evidence"][0]["id"]
+        ai_base = f"{base}/ai/analyses"
+        ai_headers = {**csrf_headers(token), "Idempotency-Key": uuid.uuid4().hex}
+        created_ai = owner.post(ai_base, headers=ai_headers, json={"finding_id": duplicate["id"]})
+        assert created_ai.status_code == 202, created_ai.text
+        assert (
+            owner.post(ai_base, headers=ai_headers, json={"finding_id": duplicate["id"]}).json()
+            == created_ai.json()
+        )
+        assert (
+            owner.post(ai_base, headers=ai_headers, json={"audit_id": audit_id}).status_code == 409
+        )
+        assert (
+            outsider.post(
+                ai_base,
+                headers={**csrf_headers(other_token), "Idempotency-Key": uuid.uuid4().hex},
+                json={"finding_id": duplicate["id"]},
+            ).status_code
+            == 404
+        )
+        assert (
+            viewer.post(
+                ai_base,
+                headers={**csrf_headers(viewer_token), "Idempotency-Key": uuid.uuid4().hex},
+                json={"finding_id": duplicate["id"]},
+            ).status_code
+            == 403
+        )
+
+        response = {
+            "summary": "Possível duplicidade de compras.",
+            "possible_causes": ["Registro repetido."],
+            "suggested_checks": ["Conferir os pedidos originais."],
+            "corrective_actions": ["Revisar antes de pagar."],
+            "evidence_ids": [evidence_id],
+        }
+
+        def fake_ollama(request: object, timeout: int) -> io.BytesIO:
+            assert timeout == settings.ollama_timeout_seconds
+            body = json.loads(request.data)  # type: ignore[attr-defined]
+            assert body["stream"] is False
+            assert body["format"]["type"] == "object"
+            return io.BytesIO(
+                json.dumps(
+                    {
+                        "done": True,
+                        "model": "test-model",
+                        "message": {"content": json.dumps(response)},
+                    }
+                ).encode()
+            )
+
+        monkeypatch.setattr(urllib.request, "urlopen", fake_ollama)
+        assert run_once()
+        analysis_id = created_ai.json()["analysis_id"]
+        ai_result = owner.get(f"{ai_base}/{analysis_id}").json()
+        assert ai_result["status"] == "succeeded"
+        assert ai_result["evidence_ids"] == [evidence_id]
+        assert outsider.get(f"{ai_base}/{analysis_id}").status_code == 404
+        assert viewer.get(f"{ai_base}/{analysis_id}").status_code == 200
+
+        audit_ai = owner.post(
+            ai_base,
+            headers={**csrf_headers(token), "Idempotency-Key": uuid.uuid4().hex},
+            json={"audit_id": audit_id},
+        )
+        assert audit_ai.status_code == 202
+        assert run_once()
+        assert (
+            owner.get(f"{ai_base}/{audit_ai.json()['analysis_id']}").json()["status"] == "succeeded"
+        )
+
+        response["evidence_ids"] = [str(uuid.uuid4())]
+        invalid = owner.post(
+            ai_base,
+            headers={**csrf_headers(token), "Idempotency-Key": uuid.uuid4().hex},
+            json={"finding_id": duplicate["id"]},
+        )
+        assert invalid.status_code == 202
+        assert run_once()
+        invalid_id = invalid.json()["analysis_id"]
+        invalid_result = owner.get(f"{ai_base}/{invalid_id}").json()
+        assert invalid_result["status"] == "failed" and invalid_result["evidence_ids"] == []
+
+        def unavailable(request: object, timeout: int) -> io.BytesIO:
+            raise urllib.error.URLError("offline")
+
+        monkeypatch.setattr(urllib.request, "urlopen", unavailable)
+        offline = owner.post(
+            ai_base,
+            headers={**csrf_headers(token), "Idempotency-Key": uuid.uuid4().hex},
+            json={"finding_id": duplicate["id"]},
+        )
+        assert offline.status_code == 202
+        assert run_once()
+        offline_id = offline.json()["analysis_id"]
+        offline_result = owner.get(f"{ai_base}/{offline_id}").json()
+        assert offline_result["status"] == "failed"
+        assert "Ollama indisponível" in offline_result["limitation"]
+        assert owner.get(f"{base}/audits/{audit_id}").json()["status"] == "succeeded"
+
+        clean_bytes = b"\n".join(csv_bytes.splitlines()[:2]) + b"\n"
+        clean_import = owner.post(
+            f"{base}/imports",
+            headers=csrf_headers(token),
+            files={"file": ("clean.csv", clean_bytes)},
+        )
+        assert clean_import.status_code == 201
+        clean_import_id = clean_import.json()["id"]
+        assert (
+            owner.post(
+                f"{base}/imports/{clean_import_id}/confirm",
+                headers=csrf_headers(token),
+                json={"columns": mapping},
+            ).status_code
+            == 202
+        )
+        assert run_once()
+        clean_audit = owner.post(
+            f"{base}/audits",
+            headers={**csrf_headers(token), "Idempotency-Key": uuid.uuid4().hex},
+            json={"import_ids": [clean_import_id]},
+        )
+        assert clean_audit.status_code == 202
+        assert run_once()
+        assert owner.get(f"{base}/audits/{clean_audit.json()['id']}").json()["finding_count"] == 0
+        no_evidence = owner.post(
+            ai_base,
+            headers={**csrf_headers(token), "Idempotency-Key": uuid.uuid4().hex},
+            json={"audit_id": clean_audit.json()["id"]},
+        )
+        assert no_evidence.status_code == 202
+        assert run_once()
+        empty_result = owner.get(f"{ai_base}/{no_evidence.json()['analysis_id']}").json()
+        assert empty_result["status"] == "failed"
+        assert "Dados insuficientes" in empty_result["limitation"]

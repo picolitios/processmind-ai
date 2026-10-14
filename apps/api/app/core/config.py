@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     auth_hash_key: str = "local-only-replace-before-production"
     upload_dir: str = "./.uploads"
     max_upload_bytes: int = Field(default=20 * 1024 * 1024, ge=1024, le=100 * 1024 * 1024)
+    ollama_base_url: str = "http://127.0.0.1:11434"
+    ollama_model: str = "gemma3:4b"
+    ollama_timeout_seconds: int = Field(default=30, ge=1, le=120)
 
     @model_validator(mode="after")
     def validate_production(self) -> "Settings":
