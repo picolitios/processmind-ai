@@ -1,0 +1,390 @@
+openapi: 3.1.0
+info:
+  title: ProcessMind AI API (contrato alvo do MVP)
+  version: 0.1.0
+  description: Contrato planejado. Implementação incremental por fases; rotas ausentes não são simuladas.
+servers:
+  - url: /api/v1
+tags:
+  - name: auth
+  - name: organizations
+  - name: imports
+  - name: audits
+  - name: findings
+  - name: cases
+  - name: analytics
+  - name: ai
+  - name: health
+security:
+  - sessionCookie: []
+paths:
+  /auth/register:
+    post:
+      tags: [auth]
+      security: []
+      summary: Cadastrar usuário
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterInput' }
+      responses:
+        '201': { description: Usuário criado, content: { application/json: { schema: { $ref: '#/components/schemas/User' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /auth/login:
+    post:
+      tags: [auth]
+      security: []
+      summary: Criar sessão por cookie e retornar token CSRF
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginInput' }
+      responses:
+        '200': { description: Sessão criada, headers: { Set-Cookie: { schema: { type: string } } }, content: { application/json: { schema: { $ref: '#/components/schemas/SessionView' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /auth/logout:
+    post:
+      tags: [auth]
+      parameters: [ { $ref: '#/components/parameters/Csrf' } ]
+      summary: Revogar sessão atual
+      responses:
+        '204': { description: Sessão revogada }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /auth/session:
+    get:
+      tags: [auth]
+      summary: Consultar sessão e associações
+      responses:
+        '200': { description: Sessão ativa, content: { application/json: { schema: { $ref: '#/components/schemas/SessionView' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /organizations:
+    get:
+      tags: [organizations]
+      summary: Listar organizações associadas
+      responses:
+        '200': { description: Organizações do usuário, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Organization' } } } } }
+    post:
+      tags: [organizations]
+      parameters: [ { $ref: '#/components/parameters/Csrf' } ]
+      summary: Criar organização com usuário como Owner
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/OrganizationInput' } } }
+      responses:
+        '201': { description: Organização criada, content: { application/json: { schema: { $ref: '#/components/schemas/Organization' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /organizations/{organization_id}:
+    get:
+      tags: [organizations]
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' } ]
+      summary: Consultar organização
+      responses:
+        '200': { description: Organização, content: { application/json: { schema: { $ref: '#/components/schemas/Organization' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [organizations]
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/Csrf' } ]
+      summary: Atualizar configurações operacionais (Owner/Admin)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/OrganizationSettingsInput' } } }
+      responses:
+        '200': { description: Organização atualizada, content: { application/json: { schema: { $ref: '#/components/schemas/Organization' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /organizations/{organization_id}/users:
+    get:
+      tags: [organizations]
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/Limit' }, { $ref: '#/components/parameters/Cursor' } ]
+      summary: Listar membros
+      responses:
+        '200': { description: Página, content: { application/json: { schema: { $ref: '#/components/schemas/MemberPage' } } } }
+    post:
+      tags: [organizations]
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/Csrf' } ]
+      summary: Associar usuário existente por email (Owner)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/MemberInput' } } }
+      responses:
+        '201': { description: Associação criada, content: { application/json: { schema: { $ref: '#/components/schemas/Member' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /organizations/{organization_id}/users/{user_id}:
+    patch:
+      tags: [organizations]
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/UserId' }, { $ref: '#/components/parameters/Csrf' } ]
+      summary: Alterar papel ou desativar associação (Owner)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/MemberPatch' } } }
+      responses:
+        '200': { description: Associação, content: { application/json: { schema: { $ref: '#/components/schemas/Member' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /organizations/{organization_id}/imports:
+    get:
+      tags: [imports]
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/Limit' }, { $ref: '#/components/parameters/Cursor' } ]
+      summary: Histórico de importações
+      responses:
+        '200': { description: Página, content: { application/json: { schema: { $ref: '#/components/schemas/ImportPage' } } } }
+    post:
+      tags: [imports]
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/Csrf' }, { $ref: '#/components/parameters/IdempotencyKey' } ]
+      summary: Upload para prévia (Owner/Admin/Analyst)
+      requestBody:
+        required: true
+        content: { multipart/form-data: { schema: { type: object, required: [file], properties: { file: { type: string, format: binary } } } } }
+      responses:
+        '201': { description: Prévia criada, content: { application/json: { schema: { $ref: '#/components/schemas/ImportBatch' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/TooLarge' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /organizations/{organization_id}/imports/{import_id}:
+    get:
+      tags: [imports]
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/ImportId' } ]
+      summary: Estado e resumo da importação
+      responses:
+        '200': { description: Importação, content: { application/json: { schema: { $ref: '#/components/schemas/ImportBatch' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /organizations/{organization_id}/imports/{import_id}/preview:
+    get:
+      tags: [imports]
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/ImportId' } ]
+      summary: Prévia limitada e cabeçalhos
+      responses:
+        '200': { description: Prévia, content: { application/json: { schema: { $ref: '#/components/schemas/ImportPreview' } } } }
+  /organizations/{organization_id}/imports/{import_id}/confirm:
+    post:
+      tags: [imports]
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/ImportId' }, { $ref: '#/components/parameters/Csrf' } ]
+      summary: Confirmar mapeamento e enfileirar processamento
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/MappingInput' } } }
+      responses:
+        '202': { description: Job aceito, content: { application/json: { schema: { $ref: '#/components/schemas/JobRef' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /organizations/{organization_id}/imports/{import_id}/rows:
+    get:
+      tags: [imports]
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/ImportId' }, { $ref: '#/components/parameters/Limit' }, { $ref: '#/components/parameters/Cursor' } ]
+      summary: Linhas, normalização e erros
+      responses:
+        '200': { description: Página, content: { application/json: { schema: { $ref: '#/components/schemas/RowPage' } } } }
+  /organizations/{organization_id}/purchases:
+    get:
+      tags: [imports]
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/Limit' }, { $ref: '#/components/parameters/Cursor' }, { name: import_id, in: query, schema: { type: string, format: uuid } } ]
+      summary: Compras normalizadas
+      responses:
+        '200': { description: Página, content: { application/json: { schema: { $ref: '#/components/schemas/PurchasePage' } } } }
+  /organizations/{organization_id}/audits:
+    get:
+      tags: [audits]
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/Limit' }, { $ref: '#/components/parameters/Cursor' } ]
+      summary: Histórico de auditorias
+      responses:
+        '200': { description: Página, content: { application/json: { schema: { $ref: '#/components/schemas/AuditPage' } } } }
+    post:
+      tags: [audits]
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/Csrf' }, { $ref: '#/components/parameters/IdempotencyKey' } ]
+      summary: Criar auditoria (Owner/Admin/Analyst)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/AuditInput' } } }
+      responses:
+        '202': { description: Auditoria enfileirada, content: { application/json: { schema: { $ref: '#/components/schemas/AuditRun' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /organizations/{organization_id}/audits/{audit_id}:
+    get:
+      tags: [audits]
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/AuditId' } ]
+      summary: Estado e resultados agregados
+      responses:
+        '200': { description: Auditoria, content: { application/json: { schema: { $ref: '#/components/schemas/AuditRun' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /organizations/{organization_id}/findings:
+    get:
+      tags: [findings]
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/Limit' }, { $ref: '#/components/parameters/Cursor' }, { name: audit_id, in: query, schema: { type: string, format: uuid } }, { name: severity, in: query, schema: { $ref: '#/components/schemas/Severity' } }, { name: review_state, in: query, schema: { type: string, enum: [unreviewed, in_review, resolved, dismissed] } } ]
+      summary: Listar achados filtrados
+      responses:
+        '200': { description: Página, content: { application/json: { schema: { $ref: '#/components/schemas/FindingPage' } } } }
+  /organizations/{organization_id}/findings/{finding_id}:
+    get:
+      tags: [findings]
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/FindingId' } ]
+      summary: Achado e evidências
+      responses:
+        '200': { description: Achado, content: { application/json: { schema: { $ref: '#/components/schemas/Finding' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [findings]
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/FindingId' }, { $ref: '#/components/parameters/Csrf' } ]
+      summary: Atualizar revisão (Owner/Admin/Analyst)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/FindingReviewInput' } } }
+      responses:
+        '200': { description: Achado atualizado, content: { application/json: { schema: { $ref: '#/components/schemas/Finding' } } } }
+  /organizations/{organization_id}/cases:
+    get:
+      tags: [cases]
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/Limit' }, { $ref: '#/components/parameters/Cursor' }, { name: status, in: query, schema: { $ref: '#/components/schemas/CaseStatus' } } ]
+      summary: Listar casos
+      responses:
+        '200': { description: Página, content: { application/json: { schema: { $ref: '#/components/schemas/CasePage' } } } }
+    post:
+      tags: [cases]
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/Csrf' } ]
+      summary: Criar caso a partir de achado
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CaseInput' } } }
+      responses:
+        '201': { description: Caso criado, content: { application/json: { schema: { $ref: '#/components/schemas/AuditCase' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /organizations/{organization_id}/cases/{case_id}:
+    get:
+      tags: [cases]
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/CaseId' } ]
+      summary: Caso, comentários e histórico
+      responses:
+        '200': { description: Caso, content: { application/json: { schema: { $ref: '#/components/schemas/AuditCase' } } } }
+    patch:
+      tags: [cases]
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/CaseId' }, { $ref: '#/components/parameters/Csrf' } ]
+      summary: Alterar status/responsável; encerramento exige razão
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CasePatch' } } }
+      responses:
+        '200': { description: Caso, content: { application/json: { schema: { $ref: '#/components/schemas/AuditCase' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /organizations/{organization_id}/cases/{case_id}/comments:
+    post:
+      tags: [cases]
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/CaseId' }, { $ref: '#/components/parameters/Csrf' } ]
+      summary: Comentar caso
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CommentInput' } } }
+      responses:
+        '201': { description: Comentário, content: { application/json: { schema: { $ref: '#/components/schemas/Comment' } } } }
+  /organizations/{organization_id}/analytics/overview:
+    get:
+      tags: [analytics]
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { name: from, in: query, schema: { type: string, format: date } }, { name: to, in: query, schema: { type: string, format: date } } ]
+      summary: Indicadores, séries e rankings derivados do banco
+      responses:
+        '200': { description: Visão, content: { application/json: { schema: { $ref: '#/components/schemas/Overview' } } } }
+  /organizations/{organization_id}/ai/analyses:
+    post:
+      tags: [ai]
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/Csrf' }, { $ref: '#/components/parameters/IdempotencyKey' } ]
+      summary: Enfileirar explicação de achado ou auditoria
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/AIInput' } } }
+      responses:
+        '202': { description: Job aceito, content: { application/json: { schema: { $ref: '#/components/schemas/JobRef' } } } }
+  /organizations/{organization_id}/ai/analyses/{analysis_id}:
+    get:
+      tags: [ai]
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { name: analysis_id, in: path, required: true, schema: { type: string, format: uuid } } ]
+      summary: Estado e explicação validada
+      responses:
+        '200': { description: Análise, content: { application/json: { schema: { $ref: '#/components/schemas/AIAnalysis' } } } }
+  /health/live:
+    get:
+      tags: [health]
+      security: []
+      summary: Processo vivo
+      responses:
+        '200': { description: Vivo, content: { application/json: { schema: { $ref: '#/components/schemas/Health' } } } }
+  /health/ready:
+    get:
+      tags: [health]
+      security: []
+      summary: Dependências essenciais prontas
+      responses:
+        '200': { description: Pronto, content: { application/json: { schema: { $ref: '#/components/schemas/Health' } } } }
+        '503': { description: Indisponível, content: { application/json: { schema: { $ref: '#/components/schemas/Health' } } } }
+components:
+  securitySchemes:
+    sessionCookie: { type: apiKey, in: cookie, name: pm_session }
+  parameters:
+    OrganizationId: { name: organization_id, in: path, required: true, schema: { type: string, format: uuid } }
+    UserId: { name: user_id, in: path, required: true, schema: { type: string, format: uuid } }
+    ImportId: { name: import_id, in: path, required: true, schema: { type: string, format: uuid } }
+    AuditId: { name: audit_id, in: path, required: true, schema: { type: string, format: uuid } }
+    FindingId: { name: finding_id, in: path, required: true, schema: { type: string, format: uuid } }
+    CaseId: { name: case_id, in: path, required: true, schema: { type: string, format: uuid } }
+    Csrf: { name: X-CSRF-Token, in: header, required: true, schema: { type: string } }
+    IdempotencyKey: { name: Idempotency-Key, in: header, required: true, schema: { type: string, minLength: 8, maxLength: 128 } }
+    Limit: { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+    Cursor: { name: cursor, in: query, schema: { type: string } }
+  responses:
+    Unauthorized: { description: Sessão ausente/inválida, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    Forbidden: { description: Papel insuficiente, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    NotFound: { description: Não encontrado, inclusive em outro tenant, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    Conflict: { description: Conflito ou idempotência incompatível, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    TooLarge: { description: Limite excedido, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    RateLimited: { description: Limite de requisições, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    ValidationError: { description: Entrada inválida, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  schemas:
+    Error:
+      type: object
+      required: [code, message, correlation_id]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        correlation_id: { type: string }
+        details: { type: array, items: { type: object, additionalProperties: true } }
+    User: { type: object, required: [id, email], properties: { id: { type: string, format: uuid }, email: { type: string, format: email } } }
+    RegisterInput: { type: object, required: [email, password], properties: { email: { type: string, format: email }, password: { type: string, minLength: 12 } } }
+    LoginInput: { type: object, required: [email, password], properties: { email: { type: string, format: email }, password: { type: string } } }
+    SessionView: { type: object, required: [user, memberships, csrf_token], properties: { user: { $ref: '#/components/schemas/User' }, memberships: { type: array, items: { $ref: '#/components/schemas/Member' } }, csrf_token: { type: string } } }
+    Organization: { type: object, required: [id, name, slug], properties: { id: { type: string, format: uuid }, name: { type: string }, slug: { type: string }, settings_version: { type: integer } } }
+    OrganizationInput: { type: object, required: [name, slug], properties: { name: { type: string, minLength: 1 }, slug: { type: string, pattern: '^[a-z0-9-]+$' } } }
+    OrganizationSettingsInput: { type: object, properties: { amount_limits: { type: object, additionalProperties: { type: string, pattern: '^\d+(\.\d{1,2})?$' } }, delay_window_days: { type: integer, minimum: 1 } } }
+    Role: { type: string, enum: [owner, admin, analyst, viewer] }
+    Member: { type: object, required: [user_id, role, status], properties: { user_id: { type: string, format: uuid }, role: { $ref: '#/components/schemas/Role' }, status: { type: string, enum: [active, inactive] } } }
+    MemberInput: { type: object, required: [email, role], properties: { email: { type: string, format: email }, role: { $ref: '#/components/schemas/Role' } } }
+    MemberPatch: { type: object, properties: { role: { $ref: '#/components/schemas/Role' }, status: { type: string, enum: [active, inactive] } } }
+    MemberPage: { type: object, required: [items, next_cursor], properties: { items: { type: array, items: { $ref: '#/components/schemas/Member' } }, next_cursor: { type: [string, 'null'] } } }
+    JobRef: { type: object, required: [id, status], properties: { id: { type: string, format: uuid }, status: { type: string, enum: [queued, running, succeeded, failed] } } }
+    ImportBatch: { type: object, required: [id, status, filename, row_count, error_count], properties: { id: { type: string, format: uuid }, status: { type: string, enum: [preview, queued, running, succeeded, failed] }, filename: { type: string }, row_count: { type: integer }, error_count: { type: integer }, job: { $ref: '#/components/schemas/JobRef' } } }
+    ImportPreview: { type: object, required: [headers, rows], properties: { headers: { type: array, items: { type: string } }, rows: { type: array, maxItems: 20, items: { type: array, items: { type: string } } }, detected_encoding: { type: string } } }
+    MappingInput: { type: object, required: [columns], properties: { columns: { type: object, additionalProperties: { type: string } }, delimiter: { type: string }, encoding: { type: string } } }
+    ImportRow: { type: object, required: [row_number, errors], properties: { row_number: { type: integer }, normalized: { type: object, additionalProperties: true }, errors: { type: array, items: { $ref: '#/components/schemas/RowError' } } } }
+    RowError: { type: object, required: [field, code, message], properties: { field: { type: string }, code: { type: string }, message: { type: string } } }
+    Purchase: { type: object, required: [id, purchase_id, supplier_id, product_id, purchase_date, quantity, unit_price, total_amount, currency], properties: { id: { type: string, format: uuid }, purchase_id: { type: string }, supplier_id: { type: string }, supplier_name: { type: string }, product_id: { type: string }, product_name: { type: string }, purchase_date: { type: string, format: date }, quantity: { type: string }, unit_of_measure: { type: string }, unit_price: { type: string }, total_amount: { type: string }, currency: { type: string, pattern: '^[A-Z]{3}$' }, expected_delivery_date: { type: string, format: date }, actual_delivery_date: { type: string, format: date } } }
+    AuditInput: { type: object, required: [import_ids], properties: { import_ids: { type: array, minItems: 1, items: { type: string, format: uuid } } } }
+    AuditRun: { type: object, required: [id, status, rule_set_version], properties: { id: { type: string, format: uuid }, status: { type: string, enum: [queued, running, succeeded, failed] }, rule_set_version: { type: string }, finding_count: { type: integer }, limitation: { type: string } } }
+    Severity: { type: string, enum: [low, medium, high, critical] }
+    Finding: { type: object, required: [id, audit_id, rule_code, rule_version, severity, review_state, detected_at, explanation, evidence], properties: { id: { type: string, format: uuid }, audit_id: { type: string, format: uuid }, rule_code: { type: string }, rule_version: { type: string }, severity: { $ref: '#/components/schemas/Severity' }, review_state: { type: string, enum: [unreviewed, in_review, resolved, dismissed] }, detected_at: { type: string, format: date-time }, explanation: { type: string }, evidence: { type: array, items: { $ref: '#/components/schemas/Evidence' } } } }
+    Evidence: { type: object, required: [type, data], properties: { type: { type: string }, purchase_id: { type: string, format: uuid }, import_row_id: { type: string, format: uuid }, data: { type: object, additionalProperties: true } } }
+    FindingReviewInput: { type: object, required: [review_state], properties: { review_state: { type: string, enum: [in_review, resolved, dismissed] }, reason: { type: string } } }
+    CaseStatus: { type: string, enum: [open, in_review, resolved, dismissed] }
+    AuditCase: { type: object, required: [id, finding_id, status, opened_at], properties: { id: { type: string, format: uuid }, finding_id: { type: string, format: uuid }, status: { $ref: '#/components/schemas/CaseStatus' }, assignee_user_id: { type: string, format: uuid }, closure_reason: { type: string }, opened_at: { type: string, format: date-time }, closed_at: { type: string, format: date-time }, comments: { type: array, items: { $ref: '#/components/schemas/Comment' } } } }
+    CaseInput: { type: object, required: [finding_id], properties: { finding_id: { type: string, format: uuid }, assignee_user_id: { type: string, format: uuid } } }
+    CasePatch: { type: object, properties: { status: { $ref: '#/components/schemas/CaseStatus' }, assignee_user_id: { type: string, format: uuid }, closure_reason: { type: string, minLength: 1 } } }
+    CommentInput: { type: object, required: [body], properties: { body: { type: string, minLength: 1, maxLength: 5000 } } }
+    Comment: { type: object, required: [id, author_user_id, body, created_at], properties: { id: { type: string, format: uuid }, author_user_id: { type: string, format: uuid }, body: { type: string }, created_at: { type: string, format: date-time } } }
+    Overview: { type: object, required: [imports, analyzed_records, audits, findings_by_severity, pending_cases, resolved_cases, trend, suppliers, categories], properties: { imports: { type: integer }, analyzed_records: { type: integer }, audits: { type: integer }, findings_by_severity: { type: object, additionalProperties: { type: integer } }, pending_cases: { type: integer }, resolved_cases: { type: integer }, trend: { type: array, items: { type: object, additionalProperties: true } }, suppliers: { type: array, items: { type: object, additionalProperties: true } }, categories: { type: array, items: { type: object, additionalProperties: true } } } }
+    AIInput: { oneOf: [ { type: object, required: [finding_id], additionalProperties: false, properties: { finding_id: { type: string, format: uuid } } }, { type: object, required: [audit_id], additionalProperties: false, properties: { audit_id: { type: string, format: uuid } } } ] }
+    AIAnalysis: { type: object, required: [id, status], properties: { id: { type: string, format: uuid }, status: { type: string, enum: [queued, running, succeeded, failed] }, summary: { type: string }, possible_causes: { type: array, items: { type: string } }, suggested_checks: { type: array, items: { type: string } }, corrective_actions: { type: array, items: { type: string } }, evidence_ids: { type: array, items: { type: string, format: uuid } }, limitation: { type: string } } }
+    Health: { type: object, required: [status], properties: { status: { type: string, enum: [ok, unavailable] } } }
+    ImportPage: { type: object, required: [items, next_cursor], properties: { items: { type: array, items: { $ref: '#/components/schemas/ImportBatch' } }, next_cursor: { type: [string, 'null'] } } }
+    RowPage: { type: object, required: [items, next_cursor], properties: { items: { type: array, items: { $ref: '#/components/schemas/ImportRow' } }, next_cursor: { type: [string, 'null'] } } }
+    PurchasePage: { type: object, required: [items, next_cursor], properties: { items: { type: array, items: { $ref: '#/components/schemas/Purchase' } }, next_cursor: { type: [string, 'null'] } } }
+    AuditPage: { type: object, required: [items, next_cursor], properties: { items: { type: array, items: { $ref: '#/components/schemas/AuditRun' } }, next_cursor: { type: [string, 'null'] } } }
+    FindingPage: { type: object, required: [items, next_cursor], properties: { items: { type: array, items: { $ref: '#/components/schemas/Finding' } }, next_cursor: { type: [string, 'null'] } } }
+    CasePage: { type: object, required: [items, next_cursor], properties: { items: { type: array, items: { $ref: '#/components/schemas/AuditCase' } }, next_cursor: { type: [string, 'null'] } } }
