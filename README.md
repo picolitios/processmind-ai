@@ -4,7 +4,7 @@ SaaS B2B de auditoria de compras empresariais. O MVP importa compras, aplica reg
 
 ## Estado
 
-Fases 0, 1 e 2 concluídas. A Fase 2 entrega a API de identidade, organizações e permissões; formulários e telas de negócio integram a Fase 6. Consulte [plano](specs/implementation-plan.md) e [escopo](specs/product/mvp.md). Nenhum dado de dashboard deve ser tratado como real antes de existir persistência.
+Fases 0 a 3 concluídas. A Fase 3 entrega upload e ingestão na API, com worker local; formulários e telas de negócio integram a Fase 6. Consulte [plano](specs/implementation-plan.md) e [escopo](specs/product/mvp.md).
 
 ## Requisitos locais
 
@@ -49,7 +49,7 @@ npm ci
 npm run dev
 ```
 
-Verificações: `ruff check .`, `mypy app`, `pytest` em `apps/api`; `npm run lint`, `npm run typecheck`, `npm run test`, `npm run build` em `apps/web`. A CI executa migrações e testes com PostgreSQL real. A migration `0001_foundation` é a baseline; as migrações seguintes criam identidade e o índice de retenção de falhas de login. Ainda não há gerador de dados, upload nem interface funcional de auditoria.
+Verificações: `ruff check .`, `mypy app`, `pytest` em `apps/api`; `npm run lint`, `npm run typecheck`, `npm run test`, `npm run build` em `apps/web`. A CI executa migrações e testes com PostgreSQL real. A migration `0001_foundation` é a baseline; as migrações seguintes criam identidade, o índice de retenção de falhas de login e as tabelas de ingestão. Ainda não há interface funcional de auditoria.
 
 ## API de identidade (Fase 2)
 
@@ -67,3 +67,11 @@ $env:RUN_DB_TESTS='1'
 ```
 
 Se `processmind_test` já existir, pule apenas o comando `CREATE DATABASE`. Para uso fora do ambiente local, configure `APP_ENV` e uma chave `AUTH_HASH_KEY` aleatória de pelo menos 32 caracteres fora do repositório. O cookie fica `Secure` fora de `APP_ENV=local`.
+
+## Ingestão (Fase 3)
+
+`POST /api/v1/organizations/{id}/imports` recebe `multipart/form-data` com `file` CSV UTF-8 ou XLSX (até 20 MiB por padrão). Requer sessão, CSRF e papel Owner/Admin/Analyst. `Idempotency-Key` opcional evita repetição da mesma requisição. Hash SHA-256 igual na mesma organização retorna conflito; para reimportar, envie `reimport_reason` no formulário. O arquivo original fica em volume privado `upload_data`, fora da pasta pública do web.
+
+Consulte `/imports/{id}/preview` para cabeçalhos e até 20 linhas; confirme em `/imports/{id}/confirm` com `{"columns":{"purchase_id":"coluna_origem", ...}}`. O worker processa até 50 mil linhas, preserva o conteúdo bruto e apresenta erros por linha em `/imports/{id}/rows`. Compras válidas ficam em `/purchases`. O resumo e histórico estão em `/imports` e `/imports/{id}`. Os campos obrigatórios estão no [contrato](specs/architecture/openapi.yaml). Datas usam ISO 8601 (`YYYY-MM-DD`), decimais usam ponto, e moeda usa código de três letras. O worker reinicia jobs interrompidos após expirar o lease; erros permanentes ficam em estado `failed` com código de erro interno no banco.
+
+Depois de atualizar o código, aplique a migração antes de iniciar o worker: `docker compose up -d db api`, `docker compose exec -T api alembic upgrade head`, `docker compose up -d worker web`. Para gerar CSV sintético e gabarito local, execute `python scripts/generate_synthetic.py --size 100 --seed 42 --output-dir synthetic-output` (tamanhos: 100, 1000, 10000, 50000). O diretório de saída é ignorado pelo Git. Esses rótulos são apenas gabarito; as regras de auditoria pertencem à Fase 4.

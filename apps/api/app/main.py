@@ -18,6 +18,7 @@ from app.core.errors import (
 )
 from app.db.engine import make_engine
 from app.features.identity.routes import auth_router, organizations_router
+from app.features.ingestion.routes import router as ingestion_router
 
 app = FastAPI(title="ProcessMind AI API", version="0.1.0")
 app.add_middleware(
@@ -25,7 +26,7 @@ app.add_middleware(
     allow_origins=[settings.web_origin],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH"],
-    allow_headers=["Content-Type", "X-CSRF-Token"],
+    allow_headers=["Content-Type", "X-CSRF-Token", "Idempotency-Key"],
 )
 app.add_exception_handler(ApiError, api_error_handler)  # type: ignore[arg-type]
 app.add_exception_handler(HTTPException, http_error_handler)  # type: ignore[arg-type]
@@ -33,6 +34,7 @@ app.add_exception_handler(RequestValidationError, validation_error_handler)  # t
 app.add_exception_handler(Exception, unexpected_error_handler)
 app.include_router(auth_router)
 app.include_router(organizations_router)
+app.include_router(ingestion_router)
 
 
 @app.middleware("http")

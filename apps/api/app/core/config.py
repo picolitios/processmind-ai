@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     app_env: str = "local"
     session_hours: int = Field(default=12, ge=1, le=720)
     auth_hash_key: str = "local-only-replace-before-production"
+    upload_dir: str = "./.uploads"
+    max_upload_bytes: int = Field(default=20 * 1024 * 1024, ge=1024, le=100 * 1024 * 1024)
 
     @model_validator(mode="after")
     def validate_production(self) -> "Settings":

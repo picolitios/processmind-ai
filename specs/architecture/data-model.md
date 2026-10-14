@@ -9,7 +9,7 @@ Todas as PKs são UUID, timestamps são `timestamptz` UTC, quantidades e dinheir
 | OrganizationMembership | organization_id, user_id, role, status | FK para ambos; único `(organization_id,user_id)`; role enum |
 | Session | user_id, token_hash, csrf_hash, expires_at, revoked_at | token_hash único; índice `(user_id,expires_at)`; retenção limitada |
 | LoginFailure | HMAC do email, HMAC do IP, occurred_at | índices por email/data, IP/data e data para expurgo; sem credenciais em claro |
-| ImportBatch | organization_id, uploader_id, sha256, original_name, private_storage_key, mapping, status, counts, job_id | único `(organization_id,sha256)` para importação ativa; índice `(organization_id,created_at,id)` |
+| ImportBatch | organization_id, uploader_id, sha256, original_name, private_storage_key, mapping, status, counts, idempotency_key, reimport_reason | conflito por hash é serializado por organização na API; reimportação exige motivo; único `(organization_id,idempotency_key)` quando informado; índice `(organization_id,created_at,id)` |
 | ImportRow | organization_id, batch_id, row_number, raw_json, normalized_json, errors | FK composta para batch; único `(batch_id,row_number)`; raw com acesso restrito |
 | Supplier | organization_id, external_id, name | único `(organization_id,external_id)` |
 | Purchase | organization_id, batch_id, import_row_id, supplier_id, external_purchase_id, product_id/name, purchase_date, quantity, unit_of_measure, unit_price, declared_total, currency, expected/actual_delivery_date | FKs compostas; `import_row_id` único; índices por produto/data, fornecedor/data e batch. IDs externos repetidos são preservados e sinalizados. |
@@ -21,7 +21,7 @@ Todas as PKs são UUID, timestamps são `timestamptz` UTC, quantidades e dinheir
 | CaseComment | organization_id, case_id, author_membership_id, body | FK composta; índice case/data; sem edição silenciosa |
 | AuditEvent | organization_id nullable para login pré-organização, actor_user_id nullable, action, subject_type/id, metadata allowlisted, correlation_id, occurred_at | append-only; índices tenant/data, subject/data; retenção definida |
 | AIAnalysis | organization_id, run_id nullable, finding_id nullable, model/version, schema_version, response_json, status, evidence_hash | FK composta; referência a run ou finding; índice status/data |
-| Job | organization_id, type, status, payload_json, idempotency_key, attempt_count, lease_until, error_code | único `(organization_id,type,idempotency_key)`; índice `(status,lease_until)` |
+| Job | organization_id, type, status, payload_json, idempotency_key, attempt_count, lease_until, error_code | único `(organization_id,type,idempotency_key)`; índice `(status,lease_until)`; importação usa `idempotency_key = ImportBatch.id` para vínculo um a um |
 
 ## Integridade e retenção
 

@@ -138,7 +138,7 @@ paths:
       summary: Upload para prévia (Owner/Admin/Analyst)
       requestBody:
         required: true
-        content: { multipart/form-data: { schema: { type: object, required: [file], properties: { file: { type: string, format: binary } } } } }
+        content: { multipart/form-data: { schema: { type: object, required: [file], properties: { file: { type: string, format: binary }, reimport_reason: { type: string, minLength: 1, maxLength: 500 } } } } }
       responses:
         '201': { description: Prévia criada, content: { application/json: { schema: { $ref: '#/components/schemas/ImportBatch' } } } }
         '409': { $ref: '#/components/responses/Conflict' }
@@ -359,11 +359,11 @@ components:
     MemberInput: { type: object, required: [email, role], properties: { email: { type: string, format: email }, role: { $ref: '#/components/schemas/Role' } } }
     MemberPatch: { type: object, properties: { role: { $ref: '#/components/schemas/Role' }, status: { type: string, enum: [active, inactive] } } }
     MemberPage: { type: object, required: [items, next_cursor], properties: { items: { type: array, items: { $ref: '#/components/schemas/Member' } }, next_cursor: { type: [string, 'null'] } } }
-    JobRef: { type: object, required: [id, status], properties: { id: { type: string, format: uuid }, status: { type: string, enum: [queued, running, succeeded, failed] } } }
+    JobRef: { type: object, required: [id, status], properties: { id: { type: string, format: uuid }, status: { type: string, enum: [queued, running, succeeded, failed] }, error_code: { type: [string, 'null'] } } }
     ImportBatch: { type: object, required: [id, status, filename, row_count, error_count], properties: { id: { type: string, format: uuid }, status: { type: string, enum: [preview, queued, running, succeeded, failed] }, filename: { type: string }, row_count: { type: integer }, error_count: { type: integer }, job: { $ref: '#/components/schemas/JobRef' } } }
-    ImportPreview: { type: object, required: [headers, rows], properties: { headers: { type: array, items: { type: string } }, rows: { type: array, maxItems: 20, items: { type: array, items: { type: string } } }, detected_encoding: { type: string } } }
+    ImportPreview: { type: object, required: [headers, rows], properties: { headers: { type: array, items: { type: string } }, rows: { type: array, maxItems: 20, items: { type: array, items: { type: string } } }, detected_encoding: { type: [string, 'null'] }, delimiter: { type: [string, 'null'] } } }
     MappingInput: { type: object, required: [columns], properties: { columns: { type: object, additionalProperties: { type: string } }, delimiter: { type: string }, encoding: { type: string } } }
-    ImportRow: { type: object, required: [row_number, errors], properties: { row_number: { type: integer }, normalized: { type: object, additionalProperties: true }, errors: { type: array, items: { $ref: '#/components/schemas/RowError' } } } }
+    ImportRow: { type: object, required: [row_number, errors, raw], properties: { row_number: { type: integer }, raw: { type: object, additionalProperties: true }, normalized: { type: [object, 'null'], additionalProperties: true }, errors: { type: array, items: { $ref: '#/components/schemas/RowError' } } } }
     RowError: { type: object, required: [field, code, message], properties: { field: { type: string }, code: { type: string }, message: { type: string } } }
     Purchase: { type: object, required: [id, purchase_id, supplier_id, product_id, purchase_date, quantity, unit_price, total_amount, currency], properties: { id: { type: string, format: uuid }, purchase_id: { type: string }, supplier_id: { type: string }, supplier_name: { type: string }, product_id: { type: string }, product_name: { type: string }, purchase_date: { type: string, format: date }, quantity: { type: string }, unit_of_measure: { type: string }, unit_price: { type: string }, total_amount: { type: string }, currency: { type: string, pattern: '^[A-Z]{3}$' }, expected_delivery_date: { type: string, format: date }, actual_delivery_date: { type: string, format: date } } }
     AuditInput: { type: object, required: [import_ids], properties: { import_ids: { type: array, minItems: 1, items: { type: string, format: uuid } } } }
