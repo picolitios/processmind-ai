@@ -4,7 +4,7 @@ SaaS B2B de auditoria de compras empresariais. O MVP importa compras, aplica reg
 
 ## Estado
 
-Fase 0 especificada. A Fase 1 estabelece a fundação técnica; funcionalidades de negócio começam na Fase 2. Consulte [plano](specs/implementation-plan.md) e [escopo](specs/product/mvp.md). Nenhum dado de dashboard deve ser tratado como real antes de existir persistência.
+Fases 0 e 1 concluídas. Funcionalidades de negócio começam na Fase 2. Consulte [plano](specs/implementation-plan.md) e [escopo](specs/product/mvp.md). Nenhum dado de dashboard deve ser tratado como real antes de existir persistência.
 
 ## Requisitos locais
 
@@ -21,7 +21,7 @@ Fase 0 especificada. A Fase 1 estabelece a fundação técnica; funcionalidades 
 
 O OpenAPI em `specs/` descreve o contrato alvo do MVP; endpoints ainda não implementados não são expostos pelo serviço.
 
-## Fundação local (Fase 1 em andamento)
+## Fundação local (Fase 1)
 
 No PowerShell, a partir da raiz:
 
@@ -31,7 +31,7 @@ docker compose up --build -d
 docker compose exec api alembic upgrade head
 ```
 
-API: `http://localhost:8000/api/v1/health/live` e `/ready`. Web: `http://localhost:5173`. Antes de usar dados reais, substitua a senha local de `.env`; o mesmo valor precisa constar em `DATABASE_URL`. Para desenvolvimento sem Compose:
+API: `http://localhost:8000/api/v1/health/live` e `/ready`. Web: `http://localhost:5173`. Antes de usar dados reais, substitua a senha local de `.env`; o mesmo valor precisa constar em `DATABASE_URL`. O Docker Desktop deve estar em execução. Para desenvolvimento sem Compose:
 
 ```powershell
 cd apps/api
@@ -49,4 +49,4 @@ npm ci
 npm run dev
 ```
 
-Verificações: `ruff check .`, `mypy app`, `pytest` em `apps/api`; `npm run lint`, `npm run typecheck`, `npm run test`, `npm run build` em `apps/web`. A migration `0001_foundation` é uma baseline sem tabelas de negócio; a primeira migração de entidades será da Fase 2. Ainda não há gerador de dados, upload nem interface funcional de auditoria.
+Verificações: `ruff check .`, `mypy app`, `pytest` em `apps/api`; `npm run lint`, `npm run typecheck`, `npm run test`, `npm run build` em `apps/web`. A CI executa a migração e o teste de readiness com PostgreSQL real. A migration `0001_foundation` é uma baseline sem tabelas de negócio; a primeira migração de entidades será da Fase 2. Ainda não há gerador de dados, upload nem interface funcional de auditoria.

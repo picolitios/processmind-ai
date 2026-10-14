@@ -27,4 +27,4 @@ Objetivo: entregar primeiro a especificação coerente e depois uma fundação e
 ## Estado
 
 - Fase 0: concluída após revisão de contrato, cobertura de requisitos, dependências e limites de escopo.
-- Fase 1: iniciada; a fundação está criada, mas o gate de Compose/migração conectada ao PostgreSQL depende do Docker Desktop ativo.
+- Fase 1: concluída após Compose com PostgreSQL saudável, migração `0001_foundation`, liveness/readiness, web HTTP 200, testes, lint, tipos, build e auditoria npm. A CI correspondente está configurada; sua execução remota depende de um repositório Git remoto.
