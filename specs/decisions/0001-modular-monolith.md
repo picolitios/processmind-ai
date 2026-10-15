@@ -13,3 +13,7 @@ Um backend FastAPI com módulos por domínio, contratos internos explícitos e P
 ## Consequências
 
 Migrações e consistência transacional são simples. O worker pode escalar separadamente sem criar serviços de domínio. É necessário vigiar acoplamento entre módulos; comunicação por serviços/repositórios definidos, evitando importações cíclicas. Microsserviços só serão avaliados mediante gargalo demonstrado.
+
+## Evolução de 2026-10-15
+
+O monólito modular permanece como deployment da API. O despacho de auditorias ganhou outbox e RabbitMQ como primeiro limite distribuído real, sem dividir dados ou declarar serviços independentes. A justificativa e as consequências constam em `docs/architecture/decisions/0001-audit-outbox-rabbitmq.md`.

@@ -2,15 +2,17 @@ import base64
 import json
 import uuid
 from collections import defaultdict
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, Literal
 
 from fastapi import APIRouter, Header, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import and_, or_, select
 
+from app.core.config import settings
 from app.core.errors import ApiError
 from app.features.audit.models import AuditFinding, AuditRun, FindingEvidence
+from app.features.audit.outbox import OutboxEvent
 from app.features.audit.rules import RULE_VERSION
 from app.features.identity.routes import log_event, parse_cursor, require_membership
 from app.features.identity.security import DB, Auth, CsrfAuth
@@ -134,6 +136,26 @@ def create_audit(
     db.add(job)
     db.flush()
     run.job_id = job.id
+    if settings.audit_dispatch_mode == "broker":
+        event_id = uuid.uuid4()
+        db.add(
+            OutboxEvent(
+                id=event_id,
+                organization_id=organization_id,
+                event_type="audit.requested",
+                event_version=1,
+                envelope={
+                    "event_id": str(event_id),
+                    "event_type": "audit.requested",
+                    "event_version": 1,
+                    "occurred_at": datetime.now(UTC).isoformat(),
+                    "correlation_id": request.state.correlation_id,
+                    "causation_id": None,
+                    "tenant_id": str(organization_id),
+                    "payload": {"audit_id": str(run.id), "job_id": str(job.id)},
+                },
+            )
+        )
     log_event(db, request, "audit.queued", auth.user.id, "audit", run.id, organization_id)
     db.commit()
     return audit_view(run)

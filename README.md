@@ -1,99 +1,45 @@
 # ProcessMind AI
 
-SaaS B2B de auditoria de compras empresariais. O MVP importa compras, aplica regras verificáveis, organiza achados em casos e usa IA local apenas para explicações ancoradas em evidências.
+ProcessMind AI is a local-first B2B purchase audit platform. Teams import CSV/XLSX records, run versioned deterministic checks, review evidence-backed findings, and resolve cases. Optional local Ollama explanations cite stored evidence; they do not determine whether fraud occurred.
 
-## Estado
+## Implemented
 
-MVP entregue nas Fases 0 a 8, com instalação e demonstração locais. As branches e PRs de cada fase aguardam integração na `main`. Consulte o [plano](specs/implementation-plan.md), o [escopo](specs/product/mvp.md) e os [resultados da estabilização](specs/testing/phase7-results.md).
+- React/Vite UI and a versioned FastAPI REST API with organization membership, RBAC, session cookies and CSRF protection.
+- PostgreSQL 16 with Alembic migrations, tenant-scoped purchases, audit runs, findings, cases and action trail.
+- Separate import/AI worker and audit event path. An audit request commits a job and outbox event together; a publisher confirms delivery to RabbitMQ, and a consumer commits findings before acknowledging. The API exposes status and results.
+- Optional local Ollama explanations with validation and explicit fallback. Audit rules work without a model.
 
-Para avaliar o produto, siga o [guia de instalação](docs/installation.md) e o [roteiro de uso](docs/user-guide.md) com o [CSV de exemplo](examples/compras-exemplo.csv). Veja também as [capturas](docs/user-guide.md#capturas-da-demonstração), o [resumo técnico](docs/portfolio-summary.md) e o [backlog pós-MVP](docs/future-backlog.md).
+The API remains a **modular monolith**. The RabbitMQ audit path is the first distributed boundary; identity, audit and AI are not yet independently deployed services or separately owned databases. Notification and analytics workers, an independent gateway, tracing and a conversational copilot are planned. See [current state](docs/architecture/current-state.md), [target state](docs/architecture/target-state.md) and [migration plan](docs/architecture/migration-plan.md).
 
-## Requisitos locais
+## Architecture choice
 
-- Windows com PowerShell, Docker Desktop e Docker Compose;
-- Python 3.12 e Node.js 24 para execução e verificações fora dos contêineres;
-- serviços gratuitos e locais. Ollama é opcional para explicações e não é necessário para auditar ou usar casos.
+The MVP used one transaction and a PostgreSQL job worker to preserve correctness with low local operating cost. RabbitMQ now dispatches long-running audit work through a real versioned event. The [transactional outbox](docs/architecture/decisions/0001-audit-outbox-rabbitmq.md) keeps a committed request pending when the broker is unavailable. Delivery is at least once; job state handles duplicates. See the [event catalog](docs/architecture/event-catalog.md) for the implemented contract, retry and dead-letter behavior.
 
-## Documentação
+nginx in the web container is the client entry point. FastAPI currently owns authentication, authorization, CORS and correlation IDs. Domain extraction will follow measured needs and a data ownership migration.
 
-- [Visão](specs/product/vision.md), [requisitos](specs/product/requirements.md) e [MVP](specs/product/mvp.md)
-- [Arquitetura](specs/architecture/system-design.md), [modelo de dados](specs/architecture/data-model.md), [stack](specs/architecture/tech-stack.md)
-- [Contrato OpenAPI versionado](specs/architecture/openapi.yaml), [segurança](specs/security/security-model.md), [testes](specs/testing/test-strategy.md)
-- [Backlog e dependências](specs/implementation-plan.md), [ADRs](specs/decisions/)
+## Run locally
 
-O OpenAPI em `specs/` descreve o contrato versionado do MVP. Seus 26 caminhos coincidem com os caminhos da API em runtime após aplicar o prefixo `/api/v1`.
-
-## Fundação local (Fase 1)
-
-No PowerShell, a partir da raiz:
+Requirements: Docker Desktop with Compose. Python 3.12 and Node.js 24 are only needed for host-side development and tests. Docker services use free local infrastructure; Ollama is optional.
 
 ```powershell
 Copy-Item .env.example .env
-docker compose up --build -d
-docker compose exec api alembic upgrade head
+# Set POSTGRES_PASSWORD and the matching DATABASE_URL in .env.
+# Set a random AUTH_HASH_KEY of at least 32 characters.
+docker compose up -d --build db rabbitmq api
+docker compose exec -T api alembic upgrade head
+docker compose up -d --build worker audit-publisher audit-consumer web
+docker compose ps
 ```
 
-API: `http://localhost:8000/api/v1/health/live` e `/ready`. Web: `http://localhost:5173`. Antes de usar dados reais, substitua a senha local de `.env`; o mesmo valor precisa constar em `DATABASE_URL`. O Docker Desktop deve estar em execução. Para desenvolvimento sem Compose:
+UI: <http://localhost:5173>. API docs: <http://localhost:8000/docs>. API readiness: <http://localhost:8000/api/v1/health/ready>. RabbitMQ management: <http://localhost:15672> (local credentials from `.env`). Follow the [installation guide](docs/installation.md) before upgrading an existing installation; apply the additive migration before restarting workers and drain old queued audits before switching dispatch modes. Preserve Compose volumes containing business data.
+For an existing installation, build images and run the additive migration in a one-off container **before** recreating the API; the [installation guide](docs/installation.md) has the exact commands.
 
-```powershell
-cd apps/api
-python -m venv .venv
-.\.venv\Scripts\python -m pip install -e '.[dev]'
-.\.venv\Scripts\alembic upgrade head
-.\.venv\Scripts\uvicorn app.main:app --reload
-```
+The [user guide](docs/user-guide.md) and [example CSV](examples/compras-exemplo.csv) cover import, audit, case review and dashboards.
 
-Em outro terminal:
+## Test and inspect
 
-```powershell
-cd apps/web
-npm ci
-npm run dev
-```
+Run `ruff check .`, `mypy app`, migrations and `pytest` from `apps/api` with a fresh test database (`DATABASE_URL`, `RUN_DB_TESTS=1`). Run `npm run lint`, `npm run typecheck`, `npm run test`, `npm run build` and `npm run test:e2e` from `apps/web`; E2E uses the running Compose stack. CI runs API and web gates.
 
-Verificações: `ruff check .`, `mypy app`, `pytest` em `apps/api`; `npm run lint`, `npm run typecheck`, `npm run test`, `npm run build` em `apps/web`. A CI executa migrações e testes com PostgreSQL real. A migration `0001_foundation` é a baseline; as migrações seguintes criam identidade, ingestão, auditoria, IA e casos.
+The [MVP stabilization results](specs/testing/phase7-results.md), [load report](specs/testing/phase7-load-report.md), [audit evaluation](specs/testing/audit-evaluation.md) and [delivery evidence](specs/testing/phase8-delivery.md) contain measured results and limitations. No distributed-load benchmark is claimed for the broker path yet.
 
-## API de identidade (Fase 2)
-
-Os endpoints implementados constam em `/docs` da API e em `specs/architecture/openapi.yaml`. O fluxo é `POST /api/v1/auth/register` → `POST /api/v1/auth/login` → `POST /api/v1/organizations`. O login define um cookie HttpOnly e retorna `csrf_token`; envie esse valor no cabeçalho `X-CSRF-Token` em operações mutáveis autenticadas. O backend confere a associação e o papel em cada operação da organização. `Owner` pode associar usuários já cadastrados por email; convites por email não fazem parte desta fase.
-
-O teste de integração local usa um banco separado. Para criá-lo e executar o gate da Fase 2:
-
-```powershell
-docker compose exec -T db psql -U processmind -d postgres -c 'CREATE DATABASE processmind_test'
-cd apps/api
-$env:DATABASE_URL='postgresql+psycopg://processmind:change-me-local@127.0.0.1:5432/processmind_test'
-$env:RUN_DB_TESTS='1'
-.\.venv\Scripts\alembic upgrade head
-.\.venv\Scripts\pytest
-```
-
-Se `processmind_test` já existir, pule apenas o comando `CREATE DATABASE`. Para uso fora do ambiente local, configure `APP_ENV` e uma chave `AUTH_HASH_KEY` aleatória de pelo menos 32 caracteres fora do repositório. O cookie fica `Secure` fora de `APP_ENV=local`.
-
-## Ingestão (Fase 3)
-
-`POST /api/v1/organizations/{id}/imports` recebe `multipart/form-data` com `file` CSV UTF-8 ou XLSX (até 20 MiB por padrão). Requer sessão, CSRF e papel Owner/Admin/Analyst. `Idempotency-Key` opcional evita repetição da mesma requisição. Hash SHA-256 igual na mesma organização retorna conflito; para reimportar, envie `reimport_reason` no formulário. O arquivo original fica em volume privado `upload_data`, fora da pasta pública do web.
-
-Consulte `/imports/{id}/preview` para cabeçalhos e até 20 linhas; confirme em `/imports/{id}/confirm` com `{"columns":{"purchase_id":"coluna_origem", ...}}`. O worker processa até 50 mil linhas, preserva o conteúdo bruto e apresenta erros por linha em `/imports/{id}/rows`. Compras válidas ficam em `/purchases`. O resumo e histórico estão em `/imports` e `/imports/{id}`. Os campos obrigatórios estão no [contrato](specs/architecture/openapi.yaml). Datas usam ISO 8601 (`YYYY-MM-DD`), decimais usam ponto, e moeda usa código de três letras. O worker reinicia jobs interrompidos após expirar o lease; erros permanentes ficam em estado `failed` com código de erro interno no banco.
-
-Depois de atualizar o código, aplique a migração antes de iniciar o worker: `docker compose up -d db api`, `docker compose exec -T api alembic upgrade head`, `docker compose up -d worker web`. Para gerar CSV sintético e gabarito local, execute `python scripts/generate_synthetic.py --size 100 --seed 42 --output-dir synthetic-output` (tamanhos: 100, 1000, 10000, 50000). Acrescente `--xlsx` para gerar também uma planilha com o mesmo gabarito. O diretório de saída é ignorado pelo Git.
-
-## Auditoria determinística (Fase 4)
-
-Crie uma execução com `POST /api/v1/organizations/{id}/audits`, corpo `{"import_ids":["..."]}` e cabeçalhos `X-CSRF-Token` e `Idempotency-Key` (8–128 caracteres). Apenas importações concluídas da organização são aceitas. Owner/Admin/Analyst criam auditorias; Viewer consulta. O worker aplica as [nove regras versionadas](specs/architecture/audit-rules-v1.md) usando o snapshot da configuração, sem depender de IA.
-
-Consulte `/audits`, `/audits/{id}`, `/findings` e `/findings/{id}` para estado, filtros, achados e evidências. As listagens usam cursor e limite de até 100 itens. Preço sem cinco pares comparáveis fica inconclusivo; o resumo da execução informa a limitação. O [relatório de avaliação](specs/testing/audit-evaluation.md) traz TP/FP/FN para os quatro tamanhos sintéticos e pode ser reproduzido por `python scripts/evaluate_audit.py --sizes 100 1000 10000 50000 --seed 42 --assert-gates` com o ambiente Python da API. Revisão de achados e casos pertencem à Fase 6.
-
-## Explicações opcionais com IA (Fase 5)
-
-Configure um Ollama local e baixe o modelo indicado em `OLLAMA_MODEL` (padrão `gemma3:4b`). No Compose, o worker acessa `OLLAMA_BASE_URL=http://host.docker.internal:11434`; fora do Compose, use `http://127.0.0.1:11434`. `OLLAMA_TIMEOUT_SECONDS` controla o tempo máximo por análise. A auditoria funciona mesmo sem Ollama.
-
-Depois de uma auditoria concluída, envie `POST /api/v1/organizations/{id}/ai/analyses` com `{"finding_id":"..."}` ou `{"audit_id":"..."}`, sessão, CSRF e `Idempotency-Key`. A resposta contém `analysis_id`; consulte `GET /ai/analyses/{analysis_id}`. Resultados citam apenas IDs presentes nas evidências dos achados; falhas retornam `status=failed` e `limitation`, sem modificar a auditoria. Consulte os [limites e critérios](specs/architecture/ai-explanations-v1.md).
-
-## Interface, casos e indicadores (Fase 6)
-
-`PATCH /findings/{id}` registra revisão direta quando não há caso. `POST /cases` abre um único caso por achado; `PATCH /cases/{id}` muda estado ou responsável, com justificativa obrigatória ao encerrar. `GET /cases/{id}` mostra histórico e comentários recentes; `/cases/{id}/comments` lista todos por cursor e recebe novos comentários. `GET /analytics/overview` traz contagens, evolução e rankings com filtros `from`/`to`. Como a importação não possui categoria, o ranking de categorias permanece vazio e o de produtos é exibido com limitação explícita. As [transições e definições dos indicadores](specs/architecture/cases-and-analytics-v1.md) são parte do contrato.
-
-A interface em `http://localhost:5173` oferece as onze telas em pt-BR: acesso, organizações, painel, importações, mapeamento, auditorias, detalhe de auditoria, alertas, detalhe de alerta, casos e configurações. O detalhe do caso inclui comentários, atribuição e histórico. A explicação por IA no detalhe do achado é opcional e informa a limitação quando Ollama não está disponível. Ações de escrita respeitam o papel do usuário e exigem sessão/CSRF. Consulte as [decisões da interface](specs/architecture/frontend-v1.md).
-
-Para reproduzir o fluxo completo com PostgreSQL e worker ativos, instale o navegador uma vez com `npx playwright install chromium` em `apps/web` e execute `npm run test:e2e`. O teste cria dados sintéticos isolados por organização, importa um CSV, audita, abre um caso, atribui, comenta, resolve e verifica o indicador. Use um banco de testes novo para repetir testes Python de integração quando houver jobs antigos que apontem para arquivos temporários já descartados.
+The [OpenAPI contract](specs/architecture/openapi.yaml), [event catalog](docs/architecture/event-catalog.md), [data model](specs/architecture/data-model.md), [security model](specs/security/security-model.md) and [ADRs](specs/decisions/) document established behavior. Audit requests use `202 Accepted`, idempotency keys and tenant-scoped result reads. API readiness currently verifies PostgreSQL; Compose checks broker health. Outbox retention, independent data ownership and distributed tracing remain migration work.

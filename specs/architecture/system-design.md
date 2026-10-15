@@ -2,14 +2,17 @@
 
 ## Limites
 
-SPA React chama API REST FastAPI. API e worker compartilham serviços de domínio e PostgreSQL; o worker processa jobs persistidos. Arquivos originais ficam fora do diretório público e são acessados apenas pela API autenticada. Ollama só é chamado pelo worker de IA. O banco é a fonte de verdade para compras, regras, achados, casos e trilha.
+SPA React chama API REST FastAPI. API e processos de worker compartilham serviços de domínio e PostgreSQL. Importação e IA usam polling de jobs persistidos; auditorias novas em Compose são despachadas por outbox e RabbitMQ. Arquivos originais ficam fora do diretório público e são acessados apenas pela API autenticada. Ollama só é chamado pelo worker de IA. O banco é a fonte de verdade para compras, regras, achados, casos e trilha.
 
 ```text
-Browser --cookie+CSRF--> API /api/v1 --> PostgreSQL
-                           |                 ^
-                           +--> arquivo      | jobs/resultado
-                           +--> worker -------+
-                                  +--> Ollama (opcional)
+Browser --cookie+CSRF--> nginx --> API /api/v1 --> PostgreSQL
+                                              |                ^
+                                              +--> arquivo     | jobs/resultado
+Outbox publisher <--------------------------- PostgreSQL       |
+       |                                       ^                |
+       +--> RabbitMQ --> audit consumer -------+                |
+                           import/AI worker ------------------+
+                                +--> Ollama (opcional)
 ```
 
 ## Módulos de domínio
@@ -22,7 +25,7 @@ Upload com limite de bytes e detecção de tipo → hash SHA-256 e arquivo priva
 
 ## Fluxo de auditoria
 
-API cria `AuditRun` idempotente para importações selecionadas e versão de regras → worker lê compras e erros de `ImportRow` do tenant → aplica regras por lotes → grava achados/evidências e métricas em transação → marca sucesso ou falha. Assim, registros incompletos e quantidades inválidas continuam auditáveis mesmo quando não geram `Purchase`. Achado tem identidade estável por execução, regra e registros envolvidos; revisão humana altera estado, sem apagar evidência. Análise de IA é job separado e pode falhar sem reverter achados.
+API cria `AuditRun` idempotente, job e evento de outbox na mesma transação → publicador confirma `audit.requested.v1` no RabbitMQ → consumidor valida tenant/job, lê compras e erros de `ImportRow`, aplica regras e grava achados/evidências em transação → confirma mensagem após commit. Duplicatas encontram o job concluído e não recriam achados. O modo `database` preserva o processamento antigo para rollback; o modo `broker` é usado no Compose. Assim, registros incompletos e quantidades inválidas continuam auditáveis mesmo quando não geram `Purchase`. Revisão humana altera estado, sem apagar evidência. Análise de IA é job separado e pode falhar sem reverter achados.
 
 ## Consistência e isolamento
 
@@ -30,7 +33,7 @@ Todos os recursos empresariais carregam `organization_id`; referências entre el
 
 ## Jobs e operação
 
-Tabela `job` com tipo, estado, payload validado, chave idempotente, tentativas, lease, timestamps e erro sanitizado. Worker com `FOR UPDATE SKIP LOCKED`, heartbeat/lease e retentativa limitada para falhas transitórias; falhas permanentes ficam visíveis para reprocessamento explícito. Nenhuma thread de requisição executa 50 mil linhas de modo síncrono. `/health/live` verifica processo; `/health/ready` verifica banco. Correlação propagada entre requisição e job; logs JSON sem conteúdo de compras.
+Tabela `jobs` com tipo, estado, payload validado, chave idempotente, tentativas, lease, timestamps e erro sanitizado. Workers usam `FOR UPDATE SKIP LOCKED` e retentativa limitada. Auditoria em broker usa confirmação de publicação, ACK após commit, filas de retry com atraso e dead letter. Nenhuma thread de requisição executa 50 mil linhas de modo síncrono. `/health/live` verifica processo; `/health/ready` verifica banco; o Compose monitora o broker separadamente. O ID de correlação segue no evento. Não registrar conteúdo de compras ou credenciais em logs.
 
 ## Contratos
 
