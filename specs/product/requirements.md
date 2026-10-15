@@ -1,6 +1,6 @@
 # Requisitos e critérios de aceite
 
-IDs estáveis permitem rastrear backlog, testes e contratos. `M` indica MVP; `N` indica requisito não funcional. M01–M07 e M13 estão implementados na API/worker nas Fases 2–4; as telas correspondentes continuam planejadas para a Fase 6. Os demais requisitos permanecem planejados conforme o backlog.
+IDs estáveis permitem rastrear backlog, testes e contratos. `M` indica MVP; `N` indica requisito não funcional. M01–M13 foram implementados nas Fases 2–6, incluindo as onze telas e o fluxo E2E. Os gates adicionais de segurança, carga e acessibilidade pertencem à Fase 7.
 
 | ID | Requisito | Critério de aceite observável |
 | --- | --- | --- |
@@ -13,7 +13,7 @@ IDs estáveis permitem rastrear backlog, testes e contratos. `M` indica MVP; `N`
 | M07 | Estatística | Preço atípico usa pares comparáveis e mediana/IQR/MAD; amostra insuficiente mostra limitação, nunca marca fraude. |
 | M08 | IA local | Resposta validada por schema cita apenas achados/evidências recebidos; indisponibilidade de Ollama não impede auditoria e é mostrada claramente. |
 | M09 | Alertas e casos | Achado pode ser revisado e virar um caso; transições válidas registram ator/data; encerramento exige justificativa; comentários preservam histórico. |
-| M10 | Dashboard | Indicadores, evolução e rankings são derivados do banco, respeitam filtros/tenant, têm paginação e estados vazio/erro/carregamento. |
+| M10 | Dashboard | Indicadores, evolução e rankings são derivados do banco, respeitam filtros/tenant e têm estados vazio/erro/carregamento. Rankings do painel mostram até dez itens; listas de entidades têm paginação por cursor. |
 | M11 | Trilha | Eventos de login, importação, auditoria, configuração, permissões, casos e fechamento são persistidos sem segredos. |
 | M12 | UI pt-BR | Onze telas do prompt são navegáveis, responsivas, acessíveis por teclado e apresentam feedback de erro/sucesso. |
 | M13 | Dados sintéticos | Semente fixa gera 100, 1k, 10k e 50k linhas com gabarito de duplicidade, preço, atraso, inválidos e normais. |

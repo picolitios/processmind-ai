@@ -49,7 +49,7 @@ npm ci
 npm run dev
 ```
 
-Verificações: `ruff check .`, `mypy app`, `pytest` em `apps/api`; `npm run lint`, `npm run typecheck`, `npm run test`, `npm run build` em `apps/web`. A CI executa migrações e testes com PostgreSQL real. A migration `0001_foundation` é a baseline; as migrações seguintes criam identidade, o índice de retenção de falhas de login e as tabelas de ingestão. Ainda não há interface funcional de auditoria.
+Verificações: `ruff check .`, `mypy app`, `pytest` em `apps/api`; `npm run lint`, `npm run typecheck`, `npm run test`, `npm run build` em `apps/web`. A CI executa migrações e testes com PostgreSQL real. A migration `0001_foundation` é a baseline; as migrações seguintes criam identidade, ingestão, auditoria, IA e casos.
 
 ## API de identidade (Fase 2)
 
@@ -88,6 +88,10 @@ Configure um Ollama local e baixe o modelo indicado em `OLLAMA_MODEL` (padrão `
 
 Depois de uma auditoria concluída, envie `POST /api/v1/organizations/{id}/ai/analyses` com `{"finding_id":"..."}` ou `{"audit_id":"..."}`, sessão, CSRF e `Idempotency-Key`. A resposta contém `analysis_id`; consulte `GET /ai/analyses/{analysis_id}`. Resultados citam apenas IDs presentes nas evidências dos achados; falhas retornam `status=failed` e `limitation`, sem modificar a auditoria. Consulte os [limites e critérios](specs/architecture/ai-explanations-v1.md).
 
-## Casos e indicadores (Fase 6, API)
+## Interface, casos e indicadores (Fase 6)
 
-`PATCH /findings/{id}` registra revisão direta quando não há caso. `POST /cases` abre um único caso por achado; `PATCH /cases/{id}` muda estado ou responsável, com justificativa obrigatória ao encerrar. `GET /cases/{id}` mostra histórico e comentários recentes; `/cases/{id}/comments` lista todos por cursor e recebe novos comentários. `GET /analytics/overview` traz contagens, evolução e rankings com filtros `from`/`to`. Como a importação não possui categoria, o ranking de categorias permanece vazio e o de produtos é exibido com limitação explícita. As [transições e definições dos indicadores](specs/architecture/cases-and-analytics-v1.md) são parte do contrato. A interface completa dessas operações está em desenvolvimento na Fase 6.
+`PATCH /findings/{id}` registra revisão direta quando não há caso. `POST /cases` abre um único caso por achado; `PATCH /cases/{id}` muda estado ou responsável, com justificativa obrigatória ao encerrar. `GET /cases/{id}` mostra histórico e comentários recentes; `/cases/{id}/comments` lista todos por cursor e recebe novos comentários. `GET /analytics/overview` traz contagens, evolução e rankings com filtros `from`/`to`. Como a importação não possui categoria, o ranking de categorias permanece vazio e o de produtos é exibido com limitação explícita. As [transições e definições dos indicadores](specs/architecture/cases-and-analytics-v1.md) são parte do contrato.
+
+A interface em `http://localhost:5173` oferece as onze telas em pt-BR: acesso, organizações, painel, importações, mapeamento, auditorias, detalhe de auditoria, alertas, detalhe de alerta, casos e configurações. O detalhe do caso inclui comentários, atribuição e histórico. A explicação por IA no detalhe do achado é opcional e informa a limitação quando Ollama não está disponível. Ações de escrita respeitam o papel do usuário e exigem sessão/CSRF. Consulte as [decisões da interface](specs/architecture/frontend-v1.md).
+
+Para reproduzir o fluxo completo com PostgreSQL e worker ativos, instale o navegador uma vez com `npx playwright install chromium` em `apps/web` e execute `npm run test:e2e`. O teste cria dados sintéticos isolados por organização, importa um CSV, audita, abre um caso, atribui, comenta, resolve e verifica o indicador. Use um banco de testes novo para repetir testes Python de integração quando houver jobs antigos que apontem para arquivos temporários já descartados.
