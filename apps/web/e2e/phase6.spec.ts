@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { assertAccessible } from "./assertAccessible";
 
 test("cadastro até resolução de um caso", async ({ page }) => {
   const unique = Date.now().toString(36);
@@ -13,6 +14,7 @@ test("cadastro até resolução de um caso", async ({ page }) => {
   await expect(
     page.getByRole("heading", { name: "Organizações", exact: true }),
   ).toBeVisible();
+  await assertAccessible(page);
 
   await page.getByLabel("Nome").fill(`Teste E2E ${unique}`);
   await page.getByLabel("Identificador").fill(`e2e-${unique}`);
@@ -20,8 +22,10 @@ test("cadastro até resolução de um caso", async ({ page }) => {
   await expect(
     page.getByRole("heading", { name: "Visão geral" }),
   ).toBeVisible();
+  await assertAccessible(page);
 
   await page.getByRole("link", { name: "Importações" }).click();
+  await assertAccessible(page);
   const csv = [
     "purchase_id,supplier_id,purchase_date,product_id,quantity,unit_price,currency,total_amount",
     "P-1,S-1,2025-01-01,SKU-1,2,10,BRL,20",
@@ -40,6 +44,7 @@ test("cadastro até resolução de um caso", async ({ page }) => {
   await expect(
     page.getByRole("heading", { name: "Mapeamento de colunas" }),
   ).toBeVisible();
+  await assertAccessible(page);
   for (const field of [
     "ID da compra",
     "ID do fornecedor",
@@ -68,6 +73,7 @@ test("cadastro até resolução de um caso", async ({ page }) => {
   });
 
   await page.getByRole("link", { name: "Auditorias" }).click();
+  await assertAccessible(page);
   await page.getByRole("checkbox").check();
   await page.getByRole("button", { name: "Executar auditoria" }).click();
   await expect(page.getByRole("link", { name: "Abrir →" })).toBeVisible();
@@ -75,9 +81,15 @@ test("cadastro até resolução de um caso", async ({ page }) => {
   await expect(page.getByRole("link", { name: /DUPLICATE/ })).toBeVisible({
     timeout: 60_000,
   });
+  await assertAccessible(page);
+  await page.getByRole("link", { name: "Alertas" }).click();
+  await expect(page.getByRole("heading", { name: "Achados" })).toBeVisible();
+  await assertAccessible(page);
   await page.getByRole("link", { name: /DUPLICATE/ }).click();
+  await assertAccessible(page);
   await page.getByRole("button", { name: "Abrir caso" }).click();
   await expect(page.getByRole("heading", { name: /Caso/ })).toBeVisible();
+  await assertAccessible(page);
   await page
     .getByLabel("Atribuir responsável")
     .selectOption({ label: `Eu (e2e-${unique}@example.com)` });
@@ -94,8 +106,14 @@ test("cadastro até resolução de um caso", async ({ page }) => {
     .fill("Compra verificada e tratada pelo responsável.");
   await page.getByRole("button", { name: "Salvar decisão" }).click();
   await expect(page.getByText("Resolvido").first()).toBeVisible();
+  await page.getByRole("link", { name: "Casos", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Casos" })).toBeVisible();
+  await assertAccessible(page);
   await page.getByRole("link", { name: "Visão geral" }).click();
   await expect(
     page.locator(".case-stat").filter({ hasText: "Resolvidos" }).getByText("1"),
   ).toBeVisible();
+  await page.getByRole("link", { name: "Configurações" }).click();
+  await expect(page.getByRole("heading", { name: "Configurações" })).toBeVisible();
+  await assertAccessible(page);
 });

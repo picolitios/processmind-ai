@@ -4,7 +4,7 @@ SaaS B2B de auditoria de compras empresariais. O MVP importa compras, aplica reg
 
 ## Estado
 
-Fases 0 a 4 concluídas. A Fase 4 entrega auditorias determinísticas, achados e evidências na API e no worker local; formulários e telas de negócio integram a Fase 6. Consulte [plano](specs/implementation-plan.md) e [escopo](specs/product/mvp.md).
+Fases 0 a 6 concluídas em branches de trabalho; a Fase 7 estabiliza segurança, acessibilidade e carga do MVP. Consulte [plano](specs/implementation-plan.md), [escopo](specs/product/mvp.md) e [resultados de carga](specs/testing/phase7-load-report.md).
 
 ## Requisitos locais
 

@@ -52,7 +52,7 @@ async def correlation_id(
     request.state.correlation_id = str(uuid.uuid4())
     response = await call_next(request)
     response.headers["X-Correlation-ID"] = request.state.correlation_id
-    if request.url.path.startswith("/api/v1/auth/"):
+    if request.url.path.startswith("/api/v1/"):
         response.headers["Cache-Control"] = "no-store"
     return response
 
