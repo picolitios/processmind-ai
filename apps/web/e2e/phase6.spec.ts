@@ -1,4 +1,6 @@
 import { expect, test } from "@playwright/test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { assertAccessible } from "./assertAccessible";
 
 test("cadastro até resolução de um caso", async ({ page }) => {
@@ -26,17 +28,14 @@ test("cadastro até resolução de um caso", async ({ page }) => {
 
   await page.getByRole("link", { name: "Importações" }).click();
   await assertAccessible(page);
-  const csv = [
-    "purchase_id,supplier_id,purchase_date,product_id,quantity,unit_price,currency,total_amount",
-    "P-1,S-1,2025-01-01,SKU-1,2,10,BRL,20",
-    "P-2,S-1,2025-01-01,SKU-1,2,10,BRL,20",
-  ].join("\n");
   await page
     .getByLabel("Arquivo CSV ou XLSX")
     .setInputFiles({
-      name: "compras.csv",
+      name: "compras-exemplo.csv",
       mimeType: "text/csv",
-      buffer: Buffer.from(csv),
+      buffer: readFileSync(
+        new URL("../../../examples/compras-exemplo.csv", import.meta.url),
+      ),
     });
   await page.getByRole("button", { name: "Enviar arquivo" }).click();
   await expect(page.getByRole("link", { name: "Abrir →" })).toBeVisible();
@@ -106,6 +105,13 @@ test("cadastro até resolução de um caso", async ({ page }) => {
     .fill("Compra verificada e tratada pelo responsável.");
   await page.getByRole("button", { name: "Salvar decisão" }).click();
   await expect(page.getByText("Resolvido").first()).toBeVisible();
+  if (process.env.PROCESSMIND_SCREENSHOT_DIR) {
+    await page.setViewportSize({ width: 1280, height: 1080 });
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({
+      path: join(process.env.PROCESSMIND_SCREENSHOT_DIR, "case-resolved.png"),
+    });
+  }
   await page.getByRole("link", { name: "Casos", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Casos" })).toBeVisible();
   await assertAccessible(page);
@@ -113,6 +119,12 @@ test("cadastro até resolução de um caso", async ({ page }) => {
   await expect(
     page.locator(".case-stat").filter({ hasText: "Resolvidos" }).getByText("1"),
   ).toBeVisible();
+  if (process.env.PROCESSMIND_SCREENSHOT_DIR) {
+    await page.screenshot({
+      path: join(process.env.PROCESSMIND_SCREENSHOT_DIR, "dashboard.png"),
+      fullPage: true,
+    });
+  }
   await page.getByRole("link", { name: "Configurações" }).click();
   await expect(page.getByRole("heading", { name: "Configurações" })).toBeVisible();
   await assertAccessible(page);

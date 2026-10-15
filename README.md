@@ -4,22 +4,24 @@ SaaS B2B de auditoria de compras empresariais. O MVP importa compras, aplica reg
 
 ## Estado
 
-Fases 0 a 6 concluídas em branches de trabalho; a Fase 7 estabiliza segurança, acessibilidade e carga do MVP. Consulte [plano](specs/implementation-plan.md), [escopo](specs/product/mvp.md) e [resultados de carga](specs/testing/phase7-load-report.md).
+MVP entregue nas Fases 0 a 8, com instalação e demonstração locais. As branches e PRs de cada fase aguardam integração na `main`. Consulte o [plano](specs/implementation-plan.md), o [escopo](specs/product/mvp.md) e os [resultados da estabilização](specs/testing/phase7-results.md).
+
+Para avaliar o produto, siga o [guia de instalação](docs/installation.md) e o [roteiro de uso](docs/user-guide.md) com o [CSV de exemplo](examples/compras-exemplo.csv). Veja também as [capturas](docs/user-guide.md#capturas-da-demonstração), o [resumo técnico](docs/portfolio-summary.md) e o [backlog pós-MVP](docs/future-backlog.md).
 
 ## Requisitos locais
 
 - Windows com PowerShell, Docker Desktop e Docker Compose;
 - Python 3.12 e Node.js 24 para execução e verificações fora dos contêineres;
-- serviços gratuitos e locais. Ollama será necessário apenas na Fase 5.
+- serviços gratuitos e locais. Ollama é opcional para explicações e não é necessário para auditar ou usar casos.
 
 ## Documentação
 
 - [Visão](specs/product/vision.md), [requisitos](specs/product/requirements.md) e [MVP](specs/product/mvp.md)
 - [Arquitetura](specs/architecture/system-design.md), [modelo de dados](specs/architecture/data-model.md), [stack](specs/architecture/tech-stack.md)
-- [Contrato OpenAPI planejado](specs/architecture/openapi.yaml), [segurança](specs/security/security-model.md), [testes](specs/testing/test-strategy.md)
+- [Contrato OpenAPI versionado](specs/architecture/openapi.yaml), [segurança](specs/security/security-model.md), [testes](specs/testing/test-strategy.md)
 - [Backlog e dependências](specs/implementation-plan.md), [ADRs](specs/decisions/)
 
-O OpenAPI em `specs/` descreve o contrato alvo do MVP; endpoints ainda não implementados não são expostos pelo serviço.
+O OpenAPI em `specs/` descreve o contrato versionado do MVP. Seus 26 caminhos coincidem com os caminhos da API em runtime após aplicar o prefixo `/api/v1`.
 
 ## Fundação local (Fase 1)
 
