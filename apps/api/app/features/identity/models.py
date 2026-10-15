@@ -66,6 +66,7 @@ class Membership(Base):
     )
 
     __table_args__ = (
+        UniqueConstraint("organization_id", "id", name="uq_membership_org_id"),
         UniqueConstraint("organization_id", "user_id", name="uq_membership_org_user"),
         CheckConstraint("role IN ('owner','admin','analyst','viewer')", name="ck_membership_role"),
         CheckConstraint("status IN ('active','inactive')", name="ck_membership_status"),
