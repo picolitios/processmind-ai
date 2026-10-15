@@ -48,13 +48,13 @@ h3 {
 }
 .muted,
 .hint {
-  color: #6b7e79;
+  color: #536b64;
 }
 .hint {
   font-size: 0.82rem;
 }
 .eyebrow {
-  color: #178f82;
+  color: #087467;
   font-size: 0.7rem;
   font-weight: 800;
   letter-spacing: 0.15em;
@@ -76,7 +76,7 @@ h3 {
   cursor: not-allowed;
 }
 .button.primary {
-  background: #0e8d7e;
+  background: #087467;
   color: white;
 }
 .button.primary:hover:not(:disabled) {
@@ -256,7 +256,7 @@ form > .button {
 }
 .auth-switch {
   text-align: center;
-  color: #6b7e79;
+  color: #536b64;
   margin-top: 2rem;
 }
 .app-shell {
@@ -456,7 +456,7 @@ form > .button {
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
-  color: #708780;
+  color: #536b64;
   font-size: 0.8rem;
   box-shadow: 0 4px 18px #1c453508;
 }
@@ -466,7 +466,7 @@ form > .button {
   letter-spacing: -0.06em;
 }
 .metric-icon {
-  color: #0e8d7e;
+  color: #087467;
   background: #e4f6f1;
   width: 36px;
   height: 36px;
@@ -508,7 +508,7 @@ form > .button {
 }
 .rank-number {
   font-size: 0.7rem;
-  color: #9db2aa;
+  color: #536b64;
   min-width: 24px;
 }
 .date-filters,
@@ -524,7 +524,7 @@ form > .button {
   margin-bottom: 1.25rem;
 }
 .empty {
-  color: #77918a;
+  color: #536b64;
   padding: 2.3rem 0;
   text-align: center;
 }
@@ -550,7 +550,7 @@ form > .button {
 }
 .list-row small {
   font-size: 0.75rem;
-  color: #71877f;
+  color: #536b64;
   margin-top: 0.25rem;
   line-height: 1.4;
 }
@@ -567,7 +567,7 @@ th {
   font-size: 0.68rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #879d95;
+  color: #536b64;
 }
 th,
 td {
@@ -595,24 +595,24 @@ tr:last-child td {
 .status-succeeded,
 .status-resolved {
   background: #e1f6eb;
-  color: #16804a;
+  color: #126038;
 }
 .status-failed,
 .severity-critical {
   background: #fce7e3;
-  color: #ba483a;
+  color: #a13c2c;
 }
 .status-preview,
 .status-open,
 .severity-high {
   background: #fff1d9;
-  color: #a76b16;
+  color: #874f0b;
 }
 .status-running,
 .status-in_review,
 .severity-medium {
   background: #e2efff;
-  color: #3e72b5;
+  color: #2c5d9a;
 }
 .choice-list {
   display: grid;
@@ -630,7 +630,7 @@ tr:last-child td {
 }
 .choice small {
   margin-left: auto;
-  color: #71877f;
+  color: #536b64;
 }
 .mapping-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -681,7 +681,7 @@ tr:last-child td {
 }
 .comment small,
 .history-event small {
-  color: #71877f;
+  color: #536b64;
 }
 .history-event {
   display: flex;

@@ -97,6 +97,7 @@ def process_job(db: Session, job_id: uuid.UUID) -> None:
     row_count = 0
     error_count = 0
     seen_purchase_ids: set[str] = set()
+    supplier_ids: dict[str, uuid.UUID] = {}
     for number, values in rows:
         raw = dict(zip(headers, values, strict=False))
         normalized, errors = normalize(raw, mapping)
@@ -116,6 +117,7 @@ def process_job(db: Session, job_id: uuid.UUID) -> None:
         elif external_id:
             seen_purchase_ids.add(external_id)
         row = ImportRow(
+            id=uuid.uuid4(),
             organization_id=batch.organization_id,
             batch_id=batch.id,
             row_number=number,
@@ -124,53 +126,55 @@ def process_job(db: Session, job_id: uuid.UUID) -> None:
             errors=errors,
         )
         db.add(row)
-        db.flush()
         row_count += 1
         if errors:
             error_count += 1
-            continue
-        supplier_external = normalized["supplier_id"]
-        db.execute(
-            insert(Supplier)
-            .values(
-                id=uuid.uuid4(),
-                organization_id=batch.organization_id,
-                external_id=supplier_external,
-                name=normalized.get("supplier_name") or None,
+        else:
+            supplier_external = normalized["supplier_id"]
+            supplier_id = supplier_ids.get(supplier_external)
+            if supplier_id is None:
+                db.execute(
+                    insert(Supplier)
+                    .values(
+                        id=uuid.uuid4(),
+                        organization_id=batch.organization_id,
+                        external_id=supplier_external,
+                        name=normalized.get("supplier_name") or None,
+                    )
+                    .on_conflict_do_nothing(index_elements=["organization_id", "external_id"])
+                )
+                supplier_id = db.scalar(
+                    select(Supplier.id).where(
+                        Supplier.organization_id == batch.organization_id,
+                        Supplier.external_id == supplier_external,
+                    )
+                )
+                if supplier_id is None:
+                    raise ValueError("supplier_missing")
+                supplier_ids[supplier_external] = supplier_id
+            db.add(
+                Purchase(
+                    organization_id=batch.organization_id,
+                    batch_id=batch.id,
+                    import_row_id=row.id,
+                    supplier_id=supplier_id,
+                    external_purchase_id=normalized["purchase_id"],
+                    product_id=normalized["product_id"],
+                    product_name=normalized.get("product_name") or None,
+                    purchase_date=date.fromisoformat(normalized["purchase_date"]),
+                    quantity=Decimal(normalized["quantity"]),
+                    unit_of_measure=normalized.get("unit_of_measure") or None,
+                    unit_price=Decimal(normalized["unit_price"]),
+                    declared_total=Decimal(normalized["total_amount"]),
+                    currency=normalized["currency"],
+                    expected_delivery_date=date.fromisoformat(normalized["expected_delivery_date"])
+                    if normalized.get("expected_delivery_date")
+                    else None,
+                    actual_delivery_date=date.fromisoformat(normalized["actual_delivery_date"])
+                    if normalized.get("actual_delivery_date")
+                    else None,
+                )
             )
-            .on_conflict_do_nothing(index_elements=["organization_id", "external_id"])
-        )
-        supplier_id = db.scalar(
-            select(Supplier.id).where(
-                Supplier.organization_id == batch.organization_id,
-                Supplier.external_id == supplier_external,
-            )
-        )
-        if supplier_id is None:
-            raise ValueError("supplier_missing")
-        db.add(
-            Purchase(
-                organization_id=batch.organization_id,
-                batch_id=batch.id,
-                import_row_id=row.id,
-                supplier_id=supplier_id,
-                external_purchase_id=normalized["purchase_id"],
-                product_id=normalized["product_id"],
-                product_name=normalized.get("product_name") or None,
-                purchase_date=date.fromisoformat(normalized["purchase_date"]),
-                quantity=Decimal(normalized["quantity"]),
-                unit_of_measure=normalized.get("unit_of_measure") or None,
-                unit_price=Decimal(normalized["unit_price"]),
-                declared_total=Decimal(normalized["total_amount"]),
-                currency=normalized["currency"],
-                expected_delivery_date=date.fromisoformat(normalized["expected_delivery_date"])
-                if normalized.get("expected_delivery_date")
-                else None,
-                actual_delivery_date=date.fromisoformat(normalized["actual_delivery_date"])
-                if normalized.get("actual_delivery_date")
-                else None,
-            )
-        )
         if row_count % 500 == 0:
             db.flush()
             db.expunge_all()

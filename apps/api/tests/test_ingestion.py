@@ -1,6 +1,7 @@
 import os
 import uuid
 import zipfile
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -20,6 +21,48 @@ HEADERS = (
 VALID = "P-1,S-1,2025-01-01,SKU-1,2,10.00,BRL,20.00\n"
 INVALID = "P-2,S-1,2025-01-02,SKU-1,bad,10.00,BRL,20.00\n"
 REPEATED_ID = "P-1,S-2,2025-01-03,SKU-2,1,10.00,BRL,10.00\n"
+
+
+@pytest.mark.skipif(os.getenv("RUN_DB_TESTS") != "1", reason="PostgreSQL required")
+def test_concurrent_import_jobs_remain_isolated(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(settings, "upload_dir", str(tmp_path))
+    batches: list[tuple[TestClient, str, str]] = []
+    with TestClient(app) as first, TestClient(app) as second:
+        for client in (first, second):
+            email = create_user(client, "concurrent-import")
+            token = login(client, email)
+            org_id = create_org(client, token, "concurrent-org")
+            base = f"/api/v1/organizations/{org_id}/imports"
+            uploaded = client.post(
+                base,
+                headers=csrf_headers(token),
+                files={"file": ("concurrent.csv", (HEADERS + VALID).encode())},
+            )
+            assert uploaded.status_code == 201, uploaded.text
+            batch_id = uploaded.json()["id"]
+            confirmed = client.post(
+                f"{base}/{batch_id}/confirm",
+                headers=csrf_headers(token),
+                json={"columns": {field: field for field in HEADERS.strip().split(",")}},
+            )
+            assert confirmed.status_code == 202, confirmed.text
+            batches.append((client, org_id, batch_id))
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            assert all(pool.map(lambda _: run_once(), range(2)))
+        for client, org_id, batch_id in batches:
+            base = f"/api/v1/organizations/{org_id}"
+            result = client.get(f"{base}/imports/{batch_id}")
+            assert result.status_code == 200
+            assert result.json()["status"] == "succeeded"
+            assert result.json()["row_count"] == 1
+            purchases = client.get(
+                f"{base}/purchases", params={"import_id": batch_id}
+            ).json()["items"]
+            assert len(purchases) == 1
+            other_client = second if client is first else first
+            assert other_client.get(f"{base}/imports/{batch_id}").status_code == 404
 
 
 @pytest.mark.skipif(os.getenv("RUN_DB_TESTS") != "1", reason="PostgreSQL required")

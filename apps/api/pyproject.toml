@@ -20,7 +20,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8,<9", "httpx>=0.28,<1", "ruff>=0.11,<1", "mypy>=1.15,<2", "PyYAML>=6,<7", "types-PyYAML>=6,<7"]
+dev = ["pytest>=9.0.3,<10", "httpx>=0.28,<1", "ruff>=0.11,<1", "mypy>=1.15,<2", "PyYAML>=6,<7", "types-PyYAML>=6,<7", "psutil>=7,<8"]
 
 [tool.setuptools.packages.find]
 where = ["."]
