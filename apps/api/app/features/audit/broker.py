@@ -43,10 +43,13 @@ class AuditRequested(BaseModel):
 
 
 def connect() -> Any:
-    params = pika.URLParameters(settings.rabbitmq_url)
-    params.heartbeat = 0  # Audit evaluation may exceed broker heartbeat intervals.
-    params.socket_timeout = 5
-    params.blocked_connection_timeout = 30
+    params = pika.ConnectionParameters(
+        host=settings.rabbitmq_host,
+        credentials=pika.PlainCredentials(settings.rabbitmq_user, settings.rabbitmq_password),
+        heartbeat=0,  # Audit evaluation may exceed broker heartbeat intervals.
+        socket_timeout=5,
+        blocked_connection_timeout=30,
+    )
     return pika.BlockingConnection(params)
 
 

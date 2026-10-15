@@ -16,7 +16,9 @@ class Settings(BaseSettings):
     ollama_model: str = "gemma3:4b"
     ollama_timeout_seconds: int = Field(default=30, ge=1, le=120)
     audit_dispatch_mode: str = "database"
-    rabbitmq_url: str = "amqp://guest:guest@127.0.0.1:5672/%2F"
+    rabbitmq_host: str = "127.0.0.1"
+    rabbitmq_user: str = "guest"
+    rabbitmq_password: str = "guest"
 
     @model_validator(mode="after")
     def validate_production(self) -> "Settings":
