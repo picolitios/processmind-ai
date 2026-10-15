@@ -21,7 +21,7 @@ flowchart LR
   PUB --> MQ[(RabbitMQ)]
   MQ --> CON[Audit consumer]
   CON --> PG
-  API --> OLL[Optional local Ollama]
+  WORKER[Import / AI worker] --> OLL[Optional local Ollama]
 ```
 
 The broker uses durable queues, persistent messages, publisher confirms, manual consumer acknowledgment, retry with delay, and a dead-letter queue. A committed outbox record is the source for publication; delivery is **at least once**. The audit job remains the idempotency and status record, so duplicate messages cannot produce duplicate findings. `tenant_id` is checked against the job and run before processing. Public HTTP routes and authorization remain unchanged.
