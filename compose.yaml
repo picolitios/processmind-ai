@@ -14,6 +14,21 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-processmind}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-change-me-local}
+    ports:
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
   api:
     build: ./apps/api
     environment:
@@ -22,6 +37,7 @@ services:
       APP_ENV: ${APP_ENV:-local}
       AUTH_HASH_KEY: ${AUTH_HASH_KEY:-local-only-replace-before-production}
       UPLOAD_DIR: /data/uploads
+      AUDIT_DISPATCH_MODE: broker
     volumes:
       - upload_data:/data/uploads
     ports:
@@ -57,11 +73,41 @@ services:
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma3:4b}
       OLLAMA_TIMEOUT_SECONDS: ${OLLAMA_TIMEOUT_SECONDS:-30}
+      AUDIT_DISPATCH_MODE: broker
     volumes:
       - upload_data:/data/uploads
     depends_on:
       db:
         condition: service_healthy
+  audit-publisher:
+    build: ./apps/api
+    command: ["python", "-m", "app.features.audit.broker", "publish"]
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-processmind}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-processmind}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-processmind}:${RABBITMQ_PASSWORD:-change-me-local}@rabbitmq:5672/%2F
+      AUTH_HASH_KEY: ${AUTH_HASH_KEY:-local-only-replace-before-production}
+      AUDIT_DISPATCH_MODE: broker
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+  audit-consumer:
+    build: ./apps/api
+    command: ["python", "-m", "app.features.audit.broker", "consume"]
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-processmind}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-processmind}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-processmind}:${RABBITMQ_PASSWORD:-change-me-local}@rabbitmq:5672/%2F
+      AUTH_HASH_KEY: ${AUTH_HASH_KEY:-local-only-replace-before-production}
+      AUDIT_DISPATCH_MODE: broker
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
 volumes:
   postgres_data:
   upload_data:
+  rabbitmq_data:

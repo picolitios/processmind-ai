@@ -8,6 +8,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.errors import ApiError
 from app.db.engine import make_engine
 from app.features.ai.models import AIAnalysis
@@ -23,10 +24,15 @@ logger = logging.getLogger(__name__)
 
 
 def claim_job(db: Session) -> uuid.UUID | None:
+    types = (
+        ["import", "ai"]
+        if settings.audit_dispatch_mode == "broker"
+        else ["import", "audit", "ai"]
+    )
     exhausted = db.scalar(
         select(Job)
         .where(
-            Job.type.in_(["import", "audit", "ai"]),
+            Job.type.in_(types),
             Job.status == "running",
             Job.lease_until < datetime.now(UTC),
             Job.attempt_count >= 3,
@@ -43,7 +49,7 @@ def claim_job(db: Session) -> uuid.UUID | None:
     job = db.scalar(
         select(Job)
         .where(
-            Job.type.in_(["import", "audit", "ai"]),
+            Job.type.in_(types),
             or_(
                 Job.status == "queued",
                 (Job.status == "running") & (Job.lease_until < datetime.now(UTC)),

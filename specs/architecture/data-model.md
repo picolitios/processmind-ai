@@ -22,6 +22,7 @@ Todas as PKs são UUID, timestamps são `timestamptz` UTC, quantidades e dinheir
 | AuditEvent | organization_id nullable para login pré-organização, actor_user_id nullable, action, subject_type/id, metadata allowlisted, correlation_id, occurred_at | append-only; índices tenant/data, subject/data; retenção definida |
 | AIAnalysis | organization_id, run_id nullable, finding_id nullable, model/version, schema_version, response_json, status, evidence_hash | FK composta; referência a run ou finding; índice status/data |
 | Job | organization_id, type, status, payload_json, idempotency_key, attempt_count, lease_until, error_code | único `(organization_id,type,idempotency_key)`; índice `(status,lease_until)`; importação usa `idempotency_key = ImportBatch.id` para vínculo um a um |
+| OutboxEvent | organization_id, event_type/version, envelope, created_at, published_at | FK para organização; índice parcial de eventos não publicados por data; a criação da auditoria persiste job e evento na mesma transação |
 
 ## Integridade e retenção
 
