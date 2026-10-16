@@ -39,6 +39,8 @@ services:
       UPLOAD_DIR: /data/uploads
       AUDIT_DISPATCH_MODE: broker
       AUDIT_CONFIG_MODE: ${AUDIT_CONFIG_MODE:-owned}
+      AUDIT_CONFIG_WRITE_MODE: ${AUDIT_CONFIG_WRITE_MODE:-coordinated}
+      AUDIT_INTERNAL_URL: http://api:8000
       BUSINESS_EVENT_WRITE_MODE: ${BUSINESS_EVENT_WRITE_MODE:-owned}
       BUSINESS_AUTH_MODE: identity
       IDENTITY_INTERNAL_URL: http://identity:8000
@@ -64,6 +66,9 @@ services:
       WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:5173}
       APP_ENV: ${APP_ENV:-local}
       AUTH_HASH_KEY: ${AUTH_HASH_KEY:-local-only-replace-before-production}
+      AUDIT_CONFIG_MODE: ${AUDIT_CONFIG_MODE:-owned}
+      AUDIT_CONFIG_WRITE_MODE: ${AUDIT_CONFIG_WRITE_MODE:-coordinated}
+      AUDIT_INTERNAL_URL: http://api:8000
     ports:
       - "127.0.0.1:8001:8000"
     depends_on:
@@ -74,6 +79,20 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+  identity-config-reconciler:
+    build: ./apps/api
+    command: ["python", "-m", "app.features.identity.config_sync"]
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-processmind}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-processmind}
+      AUTH_HASH_KEY: ${AUTH_HASH_KEY:-local-only-replace-before-production}
+      AUDIT_CONFIG_MODE: ${AUDIT_CONFIG_MODE:-owned}
+      AUDIT_INTERNAL_URL: http://api:8000
+    depends_on:
+      db:
+        condition: service_healthy
+      api:
+        condition: service_healthy
   web:
     build: ./apps/web
     ports:

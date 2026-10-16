@@ -29,6 +29,7 @@ class AuditConfiguration(Base):
 
     organization_id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True)
     settings_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    last_command_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     amount_limits: Mapped[dict[str, str] | None] = mapped_column(JSONB, nullable=True)
     delay_window_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
 

@@ -6,7 +6,8 @@ Todas as PKs são UUID, timestamps são `timestamptz` UTC, quantidades e dinheir
 | --- | --- | --- |
 | User | email normalizado, password_hash, status | email único global; índice por status |
 | Organization | name, slug, status, settings_version | slug único; configurações versionadas |
-| AuditConfiguration | organization_id, settings_version, amount_limits, delay_window_days | Uma linha por organização; cópia versionada própria da auditoria, ainda sincronizada transitoriamente com Organization |
+| AuditConfiguration | organization_id, settings_version, last_command_id, amount_limits, delay_window_days | Uma linha por organização; apenas a auditoria aplica versões no modo coordenado; comando repetido é verificado por ID e conteúdo |
+| OrganizationConfigCommand | id, organization_id, settings_version, kind, amount_limits, delay_window_days, status, created/updated/applied_at | Comando durável da identidade; único `(organization_id,settings_version)`; índice status/data; pendência recuperável e conflito explícito |
 | OrganizationMembership | organization_id, user_id, role, status | FK para ambos; único `(organization_id,user_id)`; role enum |
 | Session | user_id, token_hash, csrf_hash, expires_at, revoked_at | token_hash único; índice `(user_id,expires_at)`; retenção limitada |
 | LoginFailure | HMAC do email, HMAC do IP, occurred_at | índices por email/data, IP/data e data para expurgo; sem credenciais em claro |

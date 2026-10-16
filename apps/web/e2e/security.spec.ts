@@ -24,6 +24,9 @@ test('web aplica headers e API desabilita cache', async ({ request, page }) => {
   expect(organizations.status()).toBe(401)
   expect(organizations.headers()['x-processmind-service']).toBe('identity')
 
+  const internal = await request.post('/internal/v1/audit-config/apply', { data: {} })
+  expect(internal.status()).toBe(404)
+
   const errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))
   page.on('console', message => {

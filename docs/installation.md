@@ -37,12 +37,20 @@ Se o banco ainda estiver inicializando, espere o healthcheck e repita somente o 
 Para **atualizar uma instalação existente**, termine primeiro os jobs de auditoria antigos em modo `database`. Pare API, identidade e os workers durante as cópias para impedir gravações com o código antigo entre o backfill e a ativação das gravações sincronizadas. Em seguida, construa as imagens e aplique as migrações aditivas com um contêiner temporário:
 
 ```powershell
-docker compose stop api identity worker audit-consumer audit-publisher
-docker compose build api identity worker audit-publisher audit-consumer web
+docker compose stop api identity identity-config-reconciler worker audit-consumer audit-publisher
+docker compose build api identity identity-config-reconciler worker audit-publisher audit-consumer web
 docker compose run --rm --no-deps api alembic upgrade head
 ```
 
-Antes de ativar a leitura `AUDIT_CONFIG_MODE=owned` em uma instalação existente, compare a contagem das duas tabelas e procure divergências de versão e valores. As contagens devem ser iguais e a segunda consulta deve retornar `0`; execute-as após a migração e antes de recriar a API. O Compose já seleciona `owned` para a API. Para rollback de leitura, selecione `AUDIT_CONFIG_MODE=legacy` e retenha ambas as tabelas.
+Antes de ativar a leitura `AUDIT_CONFIG_MODE=owned` em uma instalação existente, compare a contagem das duas tabelas e procure divergências de versão e valores. As contagens devem ser iguais e a segunda consulta deve retornar `0`; execute-as após a migração e antes de recriar a API. O Compose já seleciona `owned` para a API. O modo de escrita coordenada exige essa leitura; para rollback no banco compartilhado, selecione `AUDIT_CONFIG_WRITE_MODE=database` junto de `AUDIT_CONFIG_MODE=legacy` e retenha ambas as tabelas.
+
+O mesmo gate vale para `AUDIT_CONFIG_WRITE_MODE=coordinated`: a contagem e a consulta SQL abaixo devem confirmar cópias iguais antes da primeira ativação. O Compose usa `coordinated` na identidade e na API de compatibilidade. Se a auditoria estiver indisponível, criação/alteração de organização retorna `503`; o comando persiste e `identity-config-reconciler` tenta novamente. Inspecione as pendências sem expor valores de configuração:
+
+```powershell
+docker compose run --rm --no-deps identity python -m app.features.identity.config_sync report
+```
+
+Antes de voltar para `AUDIT_CONFIG_WRITE_MODE=database` ou para uma imagem antiga, mantenha o reconciliador ativo até `pending=0`, resolva qualquer `blocked` e repita a comparação SQL. Para localizar uma pendência sem ler seus valores, consulte `SELECT organization_id, settings_version, status FROM organization_config_commands WHERE status <> 'applied'`. Um comando `blocked` indica conflito que exige investigação; não sincronize versões por sobrescrita manual. Uma criação que retornou `503` pode ser repetida pelo mesmo owner com o mesmo slug e nome, retornando a organização provisionada.
 
 Antes de ativar `BUSINESS_EVENT_WRITE_MODE=owned` na API, no worker e no consumidor, execute a reconciliação abaixo com os escritores parados. Exija `status=clean` e `owned_only=legacy_only=conflicts=0`. Se houver divergência, mantenha `BUSINESS_EVENT_WRITE_MODE=dual` e investigue. O Compose seleciona `owned` após essa verificação; para uma instalação que ainda não passou pelo gate, defina `BUSINESS_EVENT_WRITE_MODE=dual` no `.env` até concluí-lo.
 
@@ -66,7 +74,6 @@ WHERE a.organization_id IS NULL
    OR a.delay_window_days IS DISTINCT FROM
       CASE WHEN o.settings ? 'delay_window_days'
            THEN (o.settings->>'delay_window_days')::integer ELSE 90 END;
-
 ```
 
 Se precisar voltar à imagem anterior depois de operar em `owned`, pare API, worker e consumidor; execute `docker compose run --rm --no-deps api python -m app.db.reconcile_business_events --restore-legacy` antes de reiniciar a imagem antiga. Exija as três contagens de divergência zeradas após a restauração. O comando só adiciona cópias ausentes; nunca corrige conteúdo conflitante automaticamente.
@@ -74,7 +81,7 @@ Se precisar voltar à imagem anterior depois de operar em `owned`, pare API, wor
 Após a verificação, recrie os serviços:
 
 ```powershell
-docker compose up -d --no-build rabbitmq api identity worker audit-publisher audit-consumer web
+docker compose up -d --no-build rabbitmq api identity identity-config-reconciler worker audit-publisher audit-consumer web
 ```
 
 O nginx resolve novamente o endereço da API após a recriação do contêiner.

@@ -1,9 +1,10 @@
-import re
 import uuid
 from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
+
+from app.core.audit_config_contract import AuditConfigFields
 
 Role = Literal["owner", "admin", "analyst", "viewer"]
 MemberStatus = Literal["active", "inactive"]
@@ -62,23 +63,8 @@ class OrganizationInput(BaseModel):
         return name
 
 
-class OrganizationSettingsInput(BaseModel):
-    amount_limits: dict[str, str] | None = None
-    delay_window_days: int | None = Field(default=None, ge=1, le=3650)
-
-    @field_validator("amount_limits")
-    @classmethod
-    def validate_limits(cls, limits: dict[str, str] | None) -> dict[str, str] | None:
-        if limits is None:
-            return None
-        if len(limits) > 50:
-            raise ValueError("Too many currency limits")
-        for currency, amount in limits.items():
-            if not re.fullmatch(r"[A-Z]{3}", currency) or not re.fullmatch(
-                r"\d{1,18}(?:\.\d{1,2})?", amount
-            ):
-                raise ValueError("Invalid currency or amount")
-        return limits
+class OrganizationSettingsInput(AuditConfigFields):
+    """Public audit settings retain the existing validation contract."""
 
 
 class OrganizationView(BaseModel):

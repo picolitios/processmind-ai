@@ -1,5 +1,8 @@
 # Configuração de auditoria: propriedade e transição v1
 
+O corte posterior da gravação direta pela identidade está definido em
+`audit-configuration-coordination-v1.md`.
+
 `amount_limits`, `delay_window_days` e sua versão pertencem ao domínio de auditoria. A URL pública `PATCH /api/v1/organizations/{id}` e a resposta de organização permanecem compatíveis durante a transição.
 
 ## Incremento inicial
