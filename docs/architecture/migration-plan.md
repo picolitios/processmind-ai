@@ -31,6 +31,8 @@ The dedicated identity process is live, but exclusive database ownership is bloc
 
 Do not remove the compatibility identity routes in the business API or revoke table access until these contracts and a reversible data migration pass two-tenant regression, revocation, E2E and failure tests. The current process split has no data copy or dual writes.
 
+The [identity data cutover plan](identity-data-cutover-plan.md) inventories the remaining table dependencies, sequence and release gates. Audit-settings ownership is a material decision because the current versioned audit snapshot and concurrent settings update share a PostgreSQL row lock.
+
 Identity rollback: remove the identity gateway locations, set `BUSINESS_AUTH_MODE=database` on the API, and recreate API/web before stopping identity. The shared schema and sessions require no data migration.
 
 Rollback: stop publisher/consumer, set `AUDIT_DISPATCH_MODE=database` on API and polling worker, and retain the additive outbox table. Do not drop records or revert schema with live data.
