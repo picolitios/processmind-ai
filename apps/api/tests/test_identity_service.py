@@ -9,7 +9,7 @@ from test_identity import create_org, create_user, csrf_headers, login
 from app.core.config import settings
 from app.core.errors import ApiError
 from app.features.identity import client as identity_client
-from app.features.identity.introspection import IntrospectionResult, signature
+from app.features.identity.introspection import IntrospectionResult, MembershipResult, signature
 from app.identity_app import app as identity_app
 from app.main import app as business_app
 
@@ -22,6 +22,7 @@ def test_identity_app_has_only_identity_and_health_routes() -> None:
         assert "/api/v1/health/ready" in paths
         assert not any("/imports" in path or "/audits" in path for path in paths)
         assert "/internal/v1/session/introspect" not in paths
+        assert "/internal/v1/membership/authorize" not in paths
         assert client.get("/api/v1/health/live").headers["x-processmind-service"] == "identity"
 
 
@@ -99,7 +100,29 @@ def test_signed_introspection_and_business_fail_closed(monkeypatch: pytest.Monke
 
         monkeypatch.setattr(settings, "business_auth_mode", "identity")
         monkeypatch.setattr(identity_client, "introspect_remote", local_introspection)
+
+        def local_membership(token: str, organization_id: uuid.UUID) -> MembershipResult:
+            now = str(int(time.time()))
+            result = identity.post(
+                "/internal/v1/membership/authorize",
+                json={"session_token": token, "organization_id": str(organization_id)},
+                headers={
+                    "X-Internal-Timestamp": now,
+                    "X-Internal-Signature": signature(
+                        now, token, f"membership:{organization_id}"
+                    ),
+                },
+            )
+            if result.status_code == 404:
+                raise ApiError(404, "not_found", "Organização não encontrada")
+            if result.status_code == 401:
+                raise ApiError(401, "unauthorized", "Sessão inválida")
+            assert result.status_code == 200, result.text
+            return MembershipResult.model_validate(result.json())
+
+        monkeypatch.setattr(identity_client, "authorize_membership_remote", local_membership)
         assert business.get(f"/api/v1/organizations/{org_id}/audits").status_code == 200
+        assert business.get(f"/api/v1/organizations/{uuid.uuid4()}/audits").status_code == 404
         create_path = f"/api/v1/organizations/{org_id}/audits"
         body = {"import_ids": [str(uuid.uuid4())]}
         assert business.post(create_path, json=body).status_code == 403
@@ -120,5 +143,12 @@ def test_signed_introspection_and_business_fail_closed(monkeypatch: pytest.Monke
         monkeypatch.setattr(identity_client, "introspect_remote", unavailable)
         assert business.get(f"/api/v1/organizations/{org_id}/audits").status_code == 503
         monkeypatch.setattr(identity_client, "introspect_remote", local_introspection)
+
+        def membership_unavailable(token: str, organization_id: uuid.UUID) -> MembershipResult:
+            raise ApiError(503, "identity_unavailable", "Identidade indisponível")
+
+        monkeypatch.setattr(identity_client, "authorize_membership_remote", membership_unavailable)
+        assert business.get(f"/api/v1/organizations/{org_id}/audits").status_code == 503
+        monkeypatch.setattr(identity_client, "authorize_membership_remote", local_membership)
         assert identity.post("/api/v1/auth/logout", headers=csrf_headers(csrf)).status_code == 204
         assert business.get(f"/api/v1/organizations/{org_id}/audits").status_code == 401

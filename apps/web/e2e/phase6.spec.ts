@@ -72,6 +72,7 @@ test("cadastro até resolução de um caso", async ({ page }) => {
   });
 
   await page.getByRole("link", { name: "Auditorias" }).click();
+  await expect(page.getByRole("checkbox")).toBeVisible();
   await assertAccessible(page);
   await page.getByRole("checkbox").check();
   await page.getByRole("button", { name: "Executar auditoria" }).click();
