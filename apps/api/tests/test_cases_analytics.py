@@ -9,7 +9,8 @@ from test_identity import create_org, create_user, csrf_headers, login
 
 from app.db.engine import make_engine
 from app.features.audit.models import AuditFinding, AuditRun
-from app.features.identity.models import User
+from app.features.audit_trail.models import BusinessAuditEvent
+from app.features.identity.models import AuditEvent, User
 from app.main import app
 
 pytestmark = pytest.mark.skipif(
@@ -173,6 +174,26 @@ def test_case_lifecycle_review_and_dashboard_isolation() -> None:
             "case.opened",
             "case.status_changed",
         }
+        # Both append-only tables must carry the same case events during cutover.
+        with Session(make_engine()) as db:
+            legacy = db.scalars(
+                select(AuditEvent).where(
+                    AuditEvent.organization_id == uuid.UUID(org_id),
+                    AuditEvent.subject_type == "case",
+                    AuditEvent.subject_id == uuid.UUID(case_id),
+                )
+            ).all()
+            owned = db.scalars(
+                select(BusinessAuditEvent).where(
+                    BusinessAuditEvent.organization_id == uuid.UUID(org_id),
+                    BusinessAuditEvent.subject_type == "case",
+                    BusinessAuditEvent.subject_id == uuid.UUID(case_id),
+                )
+            ).all()
+            assert len(owned) >= 2
+            assert {item.id: (item.action, item.metadata_json) for item in owned} == {
+                item.id: (item.action, item.metadata_json) for item in legacy
+            }
         assert (
             owner.patch(
                 f"{base}/findings/{second}",

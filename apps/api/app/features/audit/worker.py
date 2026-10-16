@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.features.audit.models import AuditFinding, AuditRun, FindingEvidence
 from app.features.audit.rules import RULE_VERSION, SEVERITY, evaluate
-from app.features.identity.models import AuditEvent
+from app.features.audit_trail.events import append_business_event
 from app.features.ingestion.models import ImportBatch, ImportRow, Job, Purchase
 
 
@@ -87,14 +87,13 @@ def process_audit_job(db: Session, job_id: uuid.UUID) -> None:
     run.finished_at = datetime.now(UTC)
     job.status = "succeeded"
     job.lease_until = None
-    db.add(
-        AuditEvent(
-            organization_id=run.organization_id,
-            actor_user_id=None,
-            action="audit.completed",
-            subject_type="audit",
-            subject_id=run.id,
-            metadata_json={"finding_count": len(drafts), "rule_set_version": RULE_VERSION},
-        )
+    append_business_event(
+        db,
+        run.organization_id,
+        None,
+        "audit.completed",
+        "audit",
+        run.id,
+        {"finding_count": len(drafts), "rule_set_version": RULE_VERSION},
     )
     db.commit()
