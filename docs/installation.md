@@ -92,4 +92,12 @@ A importação, auditoria, casos e indicadores funcionam sem Ollama. Para habili
 
 Com o Compose ativo, em `apps/web`: `npm ci`, `npx playwright install chromium`, `npm run test:e2e`. O E2E cria seus próprios dados de teste no banco em uso. Para testes Python de integração, use um banco PostgreSQL de teste separado e novo, configure `DATABASE_URL` e `RUN_DB_TESTS=1`, aplique `alembic upgrade head` e execute `pytest` em `apps/api`.
 
+Antes de qualquer migração futura que remova FKs entre identidade e negócios, execute a reconciliação somente de leitura com a imagem da API atualizada:
+
+```powershell
+docker compose exec -T api python -m app.db.reconcile_identity
+```
+
+O comando retorna JSON sem dados pessoais individuais. Código de saída `0` indica referências consistentes naquele retrato, `2` indica inconsistência e `1` falha técnica. O [relatório local](architecture/reference-reconciliation-2026-10-16.md) registra o resultado deste incremento; ele não substitui os contratos e a política de exclusão exigidos antes de remover FKs.
+
 O relato de instalação em volumes isolados, com migração e E2E, está em [`specs/testing/phase8-delivery.md`](../specs/testing/phase8-delivery.md).
