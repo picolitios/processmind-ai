@@ -5,14 +5,13 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, File, Form, Header, Query, Request, UploadFile
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from app.core.config import settings
 from app.core.errors import ApiError
 from app.features.identity.client import BusinessAuth as Auth
 from app.features.identity.client import BusinessCsrfAuth as CsrfAuth
 from app.features.identity.client import require_business_membership as require_membership
-from app.features.identity.models import Organization
 from app.features.identity.routes import log_event
 from app.features.identity.security import DB
 from app.features.ingestion.models import ImportBatch, ImportRow, Job, Purchase, Supplier
@@ -61,6 +60,14 @@ def get_batch(db: DB, organization_id: uuid.UUID, import_id: uuid.UUID) -> Impor
     return batch
 
 
+def lock_import_deduplication(db: DB, organization_id: uuid.UUID) -> None:
+    # A transaction-scoped, domain-prefixed key serializes same-tenant hash and idempotency checks.
+    db.execute(
+        text("SELECT pg_advisory_xact_lock(hashtextextended(:lock_key, 0))"),
+        {"lock_key": f"processmind:import:{organization_id}"},
+    )
+
+
 @router.post("/imports", status_code=201)
 async def upload_import(
     organization_id: uuid.UUID,
@@ -98,7 +105,7 @@ async def upload_import(
             raise ApiError(422, "empty_file", "Arquivo vazio")
         preview(path, file_format)
         sha = hasher.hexdigest()
-        db.scalar(select(Organization).where(Organization.id == organization_id).with_for_update())
+        lock_import_deduplication(db, organization_id)
         if idempotency_key:
             prior = db.scalar(
                 select(ImportBatch).where(
