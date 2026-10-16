@@ -12,4 +12,4 @@ Status: approved as the next reversible identity extraction increment. Session r
 
 ## Deferred data extraction
 
-Case assignee and author lookups, organization settings snapshots, cross-domain foreign keys and audit trail writes need separate contracts or ownership changes before database credentials can be isolated.
+Case assignee and author lookups are addressed by `specs/architecture/case-membership-lookup-v1.md`. Organization settings snapshots, cross-domain foreign keys and audit trail writes still need separate contracts or ownership changes before database credentials can be isolated.

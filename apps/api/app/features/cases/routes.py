@@ -13,7 +13,9 @@ from app.features.cases.models import AuditCase, CaseComment
 from app.features.identity.client import BusinessAuth as Auth
 from app.features.identity.client import BusinessCsrfAuth as CsrfAuth
 from app.features.identity.client import require_business_membership as require_membership
-from app.features.identity.models import AuditEvent, Membership
+from app.features.identity.client import resolve_member_references
+from app.features.identity.introspection import MemberReference
+from app.features.identity.models import AuditEvent
 from app.features.identity.routes import log_event, parse_cursor
 from app.features.identity.security import DB
 
@@ -59,29 +61,26 @@ def get_case(db: DB, organization_id: uuid.UUID, case_id: uuid.UUID) -> AuditCas
     return case
 
 
-def assignee_membership(db: DB, organization_id: uuid.UUID, user_id: uuid.UUID) -> Membership:
-    member = db.scalar(
-        select(Membership).where(
-            Membership.organization_id == organization_id,
-            Membership.user_id == user_id,
-            Membership.status == "active",
-        )
+def assignee_membership(
+    db: DB, auth: Auth, organization_id: uuid.UUID, user_id: uuid.UUID
+) -> MemberReference:
+    # Identity checks active assignment; historical references may still point to inactive members.
+    members = resolve_member_references(db, auth, organization_id, user_id=user_id)
+    member = next(
+        (item for item in members if item.user_id == user_id and item.status == "active"), None
     )
     if member is None:
         raise ApiError(422, "invalid_assignee", "Responsável não pertence à organização")
     return member
 
 
-def case_views(db: DB, cases: list[AuditCase]) -> list[dict[str, Any]]:
+def case_views(db: DB, auth: Auth, cases: list[AuditCase]) -> list[dict[str, Any]]:
     member_ids = [case.assignee_membership_id for case in cases if case.assignee_membership_id]
     users = (
         {
-            member.id: member.user_id
-            for member in db.scalars(
-                select(Membership).where(
-                    Membership.organization_id == cases[0].organization_id,
-                    Membership.id.in_(member_ids),
-                )
+            member.membership_id: member.user_id
+            for member in resolve_member_references(
+                db, auth, cases[0].organization_id, membership_ids=member_ids
             )
         }
         if cases and member_ids
@@ -217,7 +216,7 @@ def list_cases(
     ).all()
     page = cases[:limit]
     return {
-        "items": case_views(db, list(page)),
+        "items": case_views(db, auth, list(page)),
         "next_cursor": make_cursor(page[-1].opened_at, page[-1].id) if len(cases) > limit else None,
     }
 
@@ -250,14 +249,14 @@ def create_case(
     ):
         raise ApiError(409, "case_exists", "Este achado já possui um caso")
     assignee = (
-        assignee_membership(db, organization_id, data.assignee_user_id)
+        assignee_membership(db, auth, organization_id, data.assignee_user_id)
         if data.assignee_user_id
         else None
     )
     case = AuditCase(
         organization_id=organization_id,
         finding_id=finding.id,
-        assignee_membership_id=assignee.id if assignee else None,
+        assignee_membership_id=assignee.membership_id if assignee else None,
         status="open",
     )
     db.add(case)
@@ -265,7 +264,7 @@ def create_case(
     finding.review_state = "in_review"
     log_event(db, request, "case.opened", auth.user.id, "case", case.id, organization_id)
     db.commit()
-    return case_views(db, [case])[0]
+    return case_views(db, auth, [case])[0]
 
 
 @router.get("/cases/{case_id}", tags=["cases"])
@@ -274,7 +273,7 @@ def case_detail(
 ) -> dict[str, Any]:
     require_membership(db, auth, organization_id)
     case = get_case(db, organization_id, case_id)
-    result = case_views(db, [case])[0]
+    result = case_views(db, auth, [case])[0]
     comments = db.scalars(
         select(CaseComment)
         .where(
@@ -285,12 +284,10 @@ def case_detail(
         .limit(20)
     ).all()
     authors = {
-        member.id: member.user_id
-        for member in db.scalars(
-            select(Membership).where(
-                Membership.organization_id == organization_id,
-                Membership.id.in_([comment.author_membership_id for comment in comments]),
-            )
+        member.membership_id: member.user_id
+        for member in resolve_member_references(
+            db, auth, organization_id,
+            membership_ids=[comment.author_membership_id for comment in comments],
         )
     }
     result["comments"] = [
@@ -382,19 +379,22 @@ def patch_case(
     if "assignee_user_id" in data.model_fields_set:
         if data.assignee_user_id is None:
             raise ApiError(422, "invalid_assignee", "Responsável obrigatório")
-        assignee = assignee_membership(db, organization_id, data.assignee_user_id)
+        assignee = assignee_membership(db, auth, organization_id, data.assignee_user_id)
         previous_assignee = case.assignee_membership_id
-        case.assignee_membership_id = assignee.id
+        case.assignee_membership_id = assignee.membership_id
         add_case_event(
             db,
             request,
             case,
             auth.user.id,
             "case.assigned",
-            {"from": str(previous_assignee) if previous_assignee else None, "to": str(assignee.id)},
+            {
+                "from": str(previous_assignee) if previous_assignee else None,
+                "to": str(assignee.membership_id),
+            },
         )
     db.commit()
-    return case_views(db, [case])[0]
+    return case_views(db, auth, [case])[0]
 
 
 @router.get("/cases/{case_id}/comments", tags=["cases"])
@@ -425,12 +425,10 @@ def list_comments(
     ).all()
     page = comments[:limit]
     authors = {
-        member.id: member.user_id
-        for member in db.scalars(
-            select(Membership).where(
-                Membership.organization_id == organization_id,
-                Membership.id.in_([comment.author_membership_id for comment in page]),
-            )
+        member.membership_id: member.user_id
+        for member in resolve_member_references(
+            db, auth, organization_id,
+            membership_ids=[comment.author_membership_id for comment in page],
         )
     }
     return {
