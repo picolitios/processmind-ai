@@ -9,14 +9,16 @@ from sqlalchemy import and_, or_, select
 from app.core.errors import ApiError
 from app.features.audit.models import AuditFinding
 from app.features.audit.routes import make_cursor
+from app.features.audit_trail.events import append_business_event
+from app.features.audit_trail.events import log_business_event as log_event
+from app.features.audit_trail.models import BusinessAuditEvent
 from app.features.cases.models import AuditCase, CaseComment
 from app.features.identity.client import BusinessAuth as Auth
 from app.features.identity.client import BusinessCsrfAuth as CsrfAuth
 from app.features.identity.client import require_business_membership as require_membership
 from app.features.identity.client import resolve_member_references
 from app.features.identity.introspection import MemberReference
-from app.features.identity.models import AuditEvent
-from app.features.identity.routes import log_event, parse_cursor
+from app.features.identity.routes import parse_cursor
 from app.features.identity.security import DB
 
 router = APIRouter(prefix="/api/v1/organizations/{organization_id}")
@@ -120,16 +122,15 @@ def add_case_event(
     action: str,
     metadata: dict[str, Any],
 ) -> None:
-    db.add(
-        AuditEvent(
-            organization_id=case.organization_id,
-            actor_user_id=actor_id,
-            action=action,
-            subject_type="case",
-            subject_id=case.id,
-            metadata_json=metadata,
-            correlation_id=getattr(request.state, "correlation_id", None),
-        )
+    append_business_event(
+        db,
+        case.organization_id,
+        actor_id,
+        action,
+        "case",
+        case.id,
+        metadata,
+        getattr(request.state, "correlation_id", None),
     )
 
 
@@ -173,16 +174,15 @@ def review_finding(
         raise ApiError(422, "closure_reason_required", "Justificativa obrigatória")
     previous = finding.review_state
     finding.review_state = data.review_state
-    db.add(
-        AuditEvent(
-            organization_id=organization_id,
-            actor_user_id=auth.user.id,
-            action="finding.reviewed",
-            subject_type="finding",
-            subject_id=finding.id,
-            metadata_json={"from": previous, "to": data.review_state, "reason": data.reason},
-            correlation_id=getattr(request.state, "correlation_id", None),
-        )
+    append_business_event(
+        db,
+        organization_id,
+        auth.user.id,
+        "finding.reviewed",
+        "finding",
+        finding.id,
+        {"from": previous, "to": data.review_state, "reason": data.reason},
+        getattr(request.state, "correlation_id", None),
     )
     db.commit()
     from app.features.audit.routes import get_finding
@@ -294,13 +294,13 @@ def case_detail(
         comment_view(comment, authors[comment.author_membership_id]) for comment in comments
     ]
     events = db.scalars(
-        select(AuditEvent)
+        select(BusinessAuditEvent)
         .where(
-            AuditEvent.organization_id == organization_id,
-            AuditEvent.subject_type == "case",
-            AuditEvent.subject_id == case_id,
+            BusinessAuditEvent.organization_id == organization_id,
+            BusinessAuditEvent.subject_type == "case",
+            BusinessAuditEvent.subject_id == case_id,
         )
-        .order_by(AuditEvent.occurred_at.desc(), AuditEvent.id.desc())
+        .order_by(BusinessAuditEvent.occurred_at.desc(), BusinessAuditEvent.id.desc())
         .limit(50)
     ).all()
     result["history"] = [

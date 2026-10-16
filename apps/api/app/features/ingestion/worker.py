@@ -15,7 +15,7 @@ from app.features.ai.models import AIAnalysis
 from app.features.ai.worker import process_ai_job
 from app.features.audit.models import AuditRun
 from app.features.audit.worker import process_audit_job
-from app.features.identity.models import AuditEvent
+from app.features.audit_trail.events import append_business_event
 from app.features.ingestion.models import ImportBatch, ImportRow, Job, Purchase, Supplier
 from app.features.ingestion.parsing import bounded_rows, normalize, table_rows
 from app.features.ingestion.routes import storage_path
@@ -199,15 +199,14 @@ def process_job(db: Session, job_id: uuid.UUID) -> None:
     batch.status = "succeeded"
     job.status = "succeeded"
     job.lease_until = None
-    db.add(
-        AuditEvent(
-            organization_id=batch.organization_id,
-            actor_user_id=None,
-            action="import.completed",
-            subject_type="import",
-            subject_id=batch.id,
-            metadata_json={"row_count": row_count, "error_count": error_count},
-        )
+    append_business_event(
+        db,
+        batch.organization_id,
+        None,
+        "import.completed",
+        "import",
+        batch.id,
+        {"row_count": row_count, "error_count": error_count},
     )
     db.commit()
 

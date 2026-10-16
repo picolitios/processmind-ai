@@ -14,7 +14,7 @@ from app.core.config import settings
 from app.features.ai.models import AIAnalysis
 from app.features.ai.schemas import AIResult
 from app.features.audit.ai_context import build_ai_context
-from app.features.identity.models import AuditEvent
+from app.features.audit_trail.events import append_business_event
 from app.features.ingestion.models import Job
 
 SYSTEM_MESSAGE = (
@@ -131,14 +131,13 @@ def process_ai_job(db: Session, job_id: uuid.UUID) -> None:
             )
             job.error_code = "invalid_ai_response"
     job.lease_until = None
-    db.add(
-        AuditEvent(
-            organization_id=analysis.organization_id,
-            actor_user_id=None,
-            action="ai.completed" if analysis.status == "succeeded" else "ai.failed",
-            subject_type="ai_analysis",
-            subject_id=analysis.id,
-            metadata_json={"status": analysis.status, "error_code": job.error_code},
-        )
+    append_business_event(
+        db,
+        analysis.organization_id,
+        None,
+        "ai.completed" if analysis.status == "succeeded" else "ai.failed",
+        "ai_analysis",
+        analysis.id,
+        {"status": analysis.status, "error_code": job.error_code},
     )
     db.commit()

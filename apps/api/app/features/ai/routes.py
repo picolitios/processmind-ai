@@ -9,10 +9,10 @@ from app.core.errors import ApiError
 from app.features.ai.models import AIAnalysis
 from app.features.ai.schemas import AIInput
 from app.features.audit.ai_context import validate_ai_target
+from app.features.audit_trail.events import log_business_event as log_event
 from app.features.identity.client import BusinessAuth as Auth
 from app.features.identity.client import BusinessCsrfAuth as CsrfAuth
 from app.features.identity.client import require_business_membership as require_membership
-from app.features.identity.routes import log_event
 from app.features.identity.security import DB
 from app.features.ingestion.models import Job
 

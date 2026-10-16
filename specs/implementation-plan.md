@@ -9,6 +9,8 @@ Os primeiros recortes da Fase 2 estão em `specs/architecture/identity-boundary-
 
 `specs/architecture/audit-configuration-ownership-v1.md` define o primeiro incremento da migração do snapshot: tabela própria, backfill e leitura controlada com rollback. A gravação cruzada transitória e as FKs ainda impedem a declaração de isolamento de credenciais.
 
+`specs/architecture/business-audit-trail-v1.md` define o incremento seguinte: histórico de negócios em tabela própria, backfill de eventos legados e escrita atômica transitória nas duas tabelas. O histórico público de caso continua igual.
+
 Objetivo: entregar primeiro a especificação coerente e depois uma fundação executável. Fase 0 altera `specs/`, `AGENTS.md` e `README.md`; Fase 1 cria `apps/api`, `apps/web`, `infra`, `compose.yaml`, migrações e CI. Validações: revisão cruzada, parse OpenAPI, execução local, testes, lint, tipos e build quando houver código.
 
 ## Backlog priorizado

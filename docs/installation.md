@@ -34,15 +34,17 @@ O banco deve aparecer como saudável antes da migração; API e web devem aparec
 
 Se o banco ainda estiver inicializando, espere o healthcheck e repita somente o comando que falhou. Execute migrações novamente após atualizar o código, antes de reiniciar o worker. Não use `docker compose down -v` em uma instalação que contenha dados a preservar.
 
-Para **atualizar uma instalação existente**, termine primeiro os jobs de auditoria antigos em modo `database`. Pare API e identidade durante a cópia para impedir PATCH com o código antigo entre o backfill e a ativação da gravação sincronizada. Em seguida, construa as imagens e aplique a migração aditiva com um contêiner temporário:
+Para **atualizar uma instalação existente**, termine primeiro os jobs de auditoria antigos em modo `database`. Pare API, identidade e os workers durante as cópias para impedir gravações com o código antigo entre o backfill e a ativação das gravações sincronizadas. Em seguida, construa as imagens e aplique as migrações aditivas com um contêiner temporário:
 
 ```powershell
-docker compose stop api identity
+docker compose stop api identity worker audit-consumer audit-publisher
 docker compose build api identity worker audit-publisher audit-consumer web
 docker compose run --rm --no-deps api alembic upgrade head
 ```
 
-Antes de ativar a leitura `AUDIT_CONFIG_MODE=owned` em uma instalação existente, compare a contagem das duas tabelas e procure divergências de versão e valores. As contagens devem ser iguais e a segunda consulta deve retornar `0`; execute-as após a migração e antes de recriar a API. O Compose já seleciona `owned` para a API. Em caso de divergência, retome a imagem anterior e investigue a cópia. Para rollback de leitura, selecione `AUDIT_CONFIG_MODE=legacy` e retenha ambas as tabelas.
+Antes de ativar a leitura `AUDIT_CONFIG_MODE=owned` em uma instalação existente, compare a contagem das duas tabelas e procure divergências de versão e valores. As contagens devem ser iguais e a segunda consulta deve retornar `0`; execute-as após a migração e antes de recriar a API. O Compose já seleciona `owned` para a API. Verifique também que a contagem de eventos de negócios legados e novos seja igual. Em caso de divergência, retome a imagem anterior e investigue a cópia. Para rollback de leitura, selecione `AUDIT_CONFIG_MODE=legacy` e retenha ambas as tabelas.
+
+Se o código antigo processar alterações durante um rollback, repita uma reconciliação revisada das duas cópias antes de reativar a versão nova. A migração Alembic já aplicada não repete automaticamente o backfill.
 
 ```sql
 SELECT (SELECT count(*) FROM organizations) AS organizations,
@@ -58,6 +60,12 @@ WHERE a.organization_id IS NULL
    OR a.delay_window_days IS DISTINCT FROM
       CASE WHEN o.settings ? 'delay_window_days'
            THEN (o.settings->>'delay_window_days')::integer ELSE 90 END;
+
+SELECT (SELECT count(*) FROM audit_events
+        WHERE organization_id IS NOT NULL
+          AND split_part(action, '.', 1)
+              IN ('import', 'audit', 'ai', 'finding', 'case')) AS legacy_business_events,
+       (SELECT count(*) FROM business_audit_events) AS business_audit_events;
 ```
 
 Após a verificação, recrie os serviços:
