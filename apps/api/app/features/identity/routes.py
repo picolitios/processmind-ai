@@ -11,6 +11,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.core.config import settings
 from app.core.errors import ApiError
+from app.features.audit.models import AuditConfiguration
 from app.features.identity.models import AuditEvent, Membership, Organization, User
 from app.features.identity.schemas import (
     LoginInput,
@@ -225,6 +226,15 @@ def create_organization(
     db.add(org)
     try:
         db.flush()
+        # Provision the audit-owned settings in the same transaction as the tenant.
+        db.add(
+            AuditConfiguration(
+                organization_id=org.id,
+                settings_version=org.settings_version,
+                amount_limits=org.settings.get("amount_limits", {}),
+                delay_window_days=org.settings.get("delay_window_days", 90),
+            )
+        )
         db.add(Membership(organization_id=org.id, user_id=auth.user.id, role="owner"))
         log_event(db, request, "organization.created", auth.user.id, "organization", org.id, org.id)
         db.commit()
@@ -254,6 +264,13 @@ def update_organization(
         raise ApiError(422, "validation_error", "Nenhuma configuração informada")
     org.settings = {**org.settings, **changes}
     org.settings_version += 1
+    # Transitional atomic write keeps rollback data and the audit snapshot aligned.
+    audit_config = db.get(AuditConfiguration, org.id, with_for_update=True)
+    if audit_config is None:
+        raise ApiError(503, "audit_configuration_missing", "Configuração de auditoria indisponível")
+    audit_config.settings_version = org.settings_version
+    audit_config.amount_limits = org.settings.get("amount_limits", {})
+    audit_config.delay_window_days = org.settings.get("delay_window_days", 90)
     log_event(
         db, request, "organization.settings_changed", auth.user.id, "organization", org.id, org.id
     )

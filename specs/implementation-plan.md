@@ -7,6 +7,8 @@ Os primeiros recortes da Fase 2 estão em `specs/architecture/identity-boundary-
 
 `specs/architecture/import-dedup-lock-v1.md` remove o bloqueio de deduplicação de importações da linha de organização sem alterar a semântica de concorrência. O snapshot de configuração da auditoria e as FKs entre domínios permanecem pendentes de migração.
 
+`specs/architecture/audit-configuration-ownership-v1.md` define o primeiro incremento da migração do snapshot: tabela própria, backfill e leitura controlada com rollback. A gravação cruzada transitória e as FKs ainda impedem a declaração de isolamento de credenciais.
+
 Objetivo: entregar primeiro a especificação coerente e depois uma fundação executável. Fase 0 altera `specs/`, `AGENTS.md` e `README.md`; Fase 1 cria `apps/api`, `apps/web`, `infra`, `compose.yaml`, migrações e CI. Validações: revisão cruzada, parse OpenAPI, execução local, testes, lint, tipos e build quando houver código.
 
 ## Backlog priorizado

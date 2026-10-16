@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     ollama_model: str = "gemma3:4b"
     ollama_timeout_seconds: int = Field(default=30, ge=1, le=120)
     audit_dispatch_mode: str = "database"
+    audit_config_mode: str = "legacy"
     rabbitmq_host: str = "127.0.0.1"
     rabbitmq_user: str = "guest"
     rabbitmq_password: str = "guest"
@@ -26,6 +27,8 @@ class Settings(BaseSettings):
     def validate_production(self) -> "Settings":
         if self.audit_dispatch_mode not in {"database", "broker"}:
             raise ValueError("AUDIT_DISPATCH_MODE must be database or broker")
+        if self.audit_config_mode not in {"legacy", "owned"}:
+            raise ValueError("AUDIT_CONFIG_MODE must be legacy or owned")
         if self.business_auth_mode not in {"database", "identity"}:
             raise ValueError("BUSINESS_AUTH_MODE must be database or identity")
         if self.app_env != "local" and (

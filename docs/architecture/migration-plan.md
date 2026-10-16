@@ -25,13 +25,15 @@ The dedicated identity process is live, but exclusive database ownership is bloc
 | Business dependency | Current use | Required contract or data change |
 | --- | --- | --- |
 | `UserSession` and `User` | Business API previously validated the session cookie directly | Signed, bounded identity introspection with fail-closed behavior and revocation tests now handles business routes in Compose; direct identity routes remain for compatibility |
-| `Organization` and `Membership` | Identity authorizes tenant membership and resolves case assignee/author references through signed private contracts; audit settings snapshots still read the shared organization row; import serialization uses a domain-scoped advisory lock | Preserve settings snapshot consistency while moving organization settings behind an explicit contract or business-owned projection |
+| `Organization` and `Membership` | Identity authorizes tenant membership and resolves case references through private contracts; audit reads an audit-owned configuration row in Compose but still locks the organization row, and identity writes both settings rows transactionally | Replace the transitional cross-domain write and row lock with a durable contract while preserving snapshot consistency |
 | `AuditEvent` | Business modules append action trail in the same transaction | Business-owned audit trail or outbox event contract, preserving actor and tenant linkage |
 | FKs to users, organizations and memberships | Jobs, audits, cases and evidence rely on shared referential integrity | Replace cross-domain FKs with validated identifiers and reconciliation before moving schemas |
 
-Do not remove the compatibility identity routes in the business API or revoke table access until these contracts and a reversible data migration pass two-tenant regression, revocation, E2E and failure tests. The current process split has no data copy or dual writes.
+Do not remove the compatibility identity routes in the business API or revoke table access until these contracts and a reversible data migration pass two-tenant regression, revocation, E2E and failure tests. The audit configuration increment copies data and uses a temporary atomic write to both representations; no other domain has been cut over.
 
-The [identity data cutover plan](identity-data-cutover-plan.md) inventories the remaining table dependencies, sequence and release gates. Audit-settings ownership is a material decision because the current versioned audit snapshot and concurrent settings update share a PostgreSQL row lock.
+The [identity data cutover plan](identity-data-cutover-plan.md) inventories the remaining table dependencies, sequence and release gates. ADR 0003 records audit ownership and the temporary shared lock.
+
+Audit configuration rollout: apply the additive migration first. Before enabling `AUDIT_CONFIG_MODE=owned`, compare `SELECT count(*) FROM organizations` with `SELECT count(*) FROM audit_configurations` and check for mismatched versions and settings. Recreate the API with the new mode only after the copy is verified. Rollback reading with `AUDIT_CONFIG_MODE=legacy`; retain both tables and their synchronized data. Compose selects `owned` after its migration step.
 
 Identity rollback: remove the identity gateway locations, set `BUSINESS_AUTH_MODE=database` on the API, and recreate API/web before stopping identity. The shared schema and sessions require no data migration.
 
