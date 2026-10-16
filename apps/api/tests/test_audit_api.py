@@ -19,9 +19,14 @@ from app.core.config import settings
 from app.db.engine import make_engine
 from app.features.audit.models import AuditConfiguration, AuditRun
 from app.features.audit.worker import process_audit_job
+from app.features.identity import client as identity_client
+from app.features.identity.introspection import IntrospectionResult, MembershipResult
 from app.features.identity.models import User
+from app.features.identity.routes import require_membership as require_local_membership
+from app.features.identity.security import authenticate_token
 from app.features.ingestion.models import ImportBatch, Job
 from app.features.ingestion.worker import run_once
+from app.identity_app import app as identity_app
 from app.main import app
 
 pytestmark = pytest.mark.skipif(
@@ -119,6 +124,107 @@ def test_audit_snapshot_stays_version_consistent_during_settings_update(
             job.status = "running"
             db.commit()
             process_audit_job(db, job_id)
+
+
+def test_remote_authorization_uses_owned_snapshot_during_coordinated_update(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "audit_config_mode", "owned")
+    monkeypatch.setattr(settings, "audit_config_write_mode", "coordinated")
+    with (
+        TestClient(identity_app) as identity,
+        TestClient(app) as business,
+        TestClient(app) as audit_private,
+    ):
+        apply_through_private_api(monkeypatch, audit_private)
+        csrf = login(identity, create_user(identity, "remote-snapshot-owner"))
+        org_id = create_org(identity, csrf, "remote-snapshot-org")
+        cookie = identity.cookies.get("pm_session")
+        assert cookie is not None
+        business.cookies.set("pm_session", cookie)
+        with Session(make_engine()) as db:
+            owner = authenticate_token(db, cookie)
+            batch = ImportBatch(
+                organization_id=uuid.UUID(org_id),
+                uploader_id=owner.user.id,
+                sha256=uuid.uuid4().hex,
+                original_name="remote-snapshot.csv",
+                private_storage_key=uuid.uuid4().hex,
+                file_format="csv",
+                status="succeeded",
+                mapping={"columns": {}},
+            )
+            db.add(batch)
+            db.commit()
+            batch_id = batch.id
+
+        def introspect(token: str, csrf_token: str | None = None) -> IntrospectionResult:
+            with Session(make_engine()) as db:
+                auth = authenticate_token(db, token)
+                return IntrospectionResult(
+                    user_id=auth.user.id,
+                    session_id=auth.session.id,
+                    csrf_valid=csrf_token == csrf,
+                )
+
+        def authorize(token: str, requested_org: uuid.UUID) -> MembershipResult:
+            with Session(make_engine()) as db:
+                auth = authenticate_token(db, token)
+                _, member = require_local_membership(db, auth, requested_org)
+                return MembershipResult(
+                    membership_id=member.id,
+                    user_id=member.user_id,
+                    organization_id=member.organization_id,
+                    role=member.role,
+                )
+
+        monkeypatch.setattr(identity_client, "introspect_remote", introspect)
+        monkeypatch.setattr(identity_client, "authorize_membership_remote", authorize)
+        monkeypatch.setattr(settings, "business_auth_mode", "identity")
+        barrier = threading.Barrier(2)
+        base = f"/api/v1/organizations/{org_id}"
+
+        def change_settings() -> int:
+            barrier.wait(timeout=5)
+            response = identity.patch(
+                base,
+                headers=csrf_headers(csrf),
+                json={"amount_limits": {"BRL": "150.00"}, "delay_window_days": 15},
+            )
+            return response.status_code
+
+        def create_audit() -> tuple[int, str]:
+            barrier.wait(timeout=5)
+            response = business.post(
+                f"{base}/audits",
+                headers={**csrf_headers(csrf), "Idempotency-Key": uuid.uuid4().hex},
+                json={"import_ids": [str(batch_id)]},
+            )
+            return response.status_code, response.json().get("id", "")
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            settings_status = pool.submit(change_settings)
+            audit_result = pool.submit(create_audit)
+            assert settings_status.result() == 200
+            audit_status, audit_id = audit_result.result()
+        assert audit_status == 202
+        with Session(make_engine()) as db:
+            run = db.get(AuditRun, uuid.UUID(audit_id))
+            assert run is not None
+            assert run.config_snapshot in (
+                {"settings_version": 1, "amount_limits": {}, "delay_window_days": 90},
+                {
+                    "settings_version": 2,
+                    "amount_limits": {"BRL": "150.00"},
+                    "delay_window_days": 15,
+                },
+            )
+            assert run.job_id is not None
+            job = db.get(Job, run.job_id)
+            assert job is not None
+            job.status = "running"
+            db.commit()
+            process_audit_job(db, job.id)
 
 
 def test_owned_audit_configuration_missing_fails_closed(

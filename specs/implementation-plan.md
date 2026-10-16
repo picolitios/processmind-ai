@@ -11,6 +11,8 @@ Os primeiros recortes da Fase 2 estão em `specs/architecture/identity-boundary-
 
 `specs/architecture/audit-configuration-coordination-v1.md` define o corte da gravação direta da identidade, com comando durável, aplicação privada idempotente, reconciliação e resposta pública síncrona após confirmação.
 
+`specs/architecture/organization-authorization-boundary-v1.md` define a retirada da releitura e do bloqueio de `organizations` pela API de negócios em modo de identidade, com snapshot serializado na configuração própria e modo local de rollback.
+
 `specs/architecture/business-audit-trail-v1.md` define o incremento seguinte: histórico de negócios em tabela própria, backfill de eventos legados e escrita atômica transitória nas duas tabelas. O histórico público de caso continua igual.
 
 `specs/architecture/business-audit-trail-cutover-v1.md` define a retirada controlada da escrita legada, com reconciliação somente de leitura e restauração idempotente para rollback durante a janela de banco compartilhado.

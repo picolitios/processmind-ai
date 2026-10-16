@@ -40,6 +40,8 @@ class Settings(BaseSettings):
             raise ValueError("BUSINESS_EVENT_WRITE_MODE must be dual or owned")
         if self.business_auth_mode not in {"database", "identity"}:
             raise ValueError("BUSINESS_AUTH_MODE must be database or identity")
+        if self.business_auth_mode == "identity" and self.audit_config_mode != "owned":
+            raise ValueError("AUDIT_CONFIG_MODE must be owned for identity authorization")
         if self.app_env != "local" and (
             self.auth_hash_key == "local-only-replace-before-production"
             or len(self.auth_hash_key) < 32
