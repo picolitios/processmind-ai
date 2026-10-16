@@ -1,22 +1,108 @@
 import io
 import json
 import os
+import threading
 import urllib.error
 import urllib.request
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 from test_identity import create_org, create_user, csrf_headers, login
 
 from app.core.config import settings
+from app.db.engine import make_engine
+from app.features.audit.models import AuditRun
+from app.features.audit.worker import process_audit_job
+from app.features.identity.models import User
+from app.features.ingestion.models import ImportBatch, Job
 from app.features.ingestion.worker import run_once
 from app.main import app
 
 pytestmark = pytest.mark.skipif(
     os.getenv("RUN_DB_TESTS") != "1", reason="PostgreSQL test database required"
 )
+
+
+def test_audit_snapshot_stays_version_consistent_during_settings_update() -> None:
+    with TestClient(app) as owner, TestClient(app) as auditor:
+        owner_email = create_user(owner, "snapshot-owner")
+        csrf = login(owner, owner_email)
+        org_id = create_org(owner, csrf, "snapshot-org")
+        cookie = owner.cookies.get("pm_session")
+        assert cookie is not None
+        auditor.cookies.set("pm_session", cookie)
+        with Session(make_engine()) as db:
+            owner_id = db.scalar(select(User.id).where(User.email == owner_email))
+            assert owner_id is not None
+            batch = ImportBatch(
+                organization_id=uuid.UUID(org_id),
+                uploader_id=owner_id,
+                sha256=uuid.uuid4().hex,
+                original_name="snapshot.csv",
+                private_storage_key=uuid.uuid4().hex,
+                file_format="csv",
+                status="succeeded",
+                mapping={"columns": {}},
+            )
+            db.add(batch)
+            db.commit()
+            batch_id = batch.id
+
+        barrier = threading.Barrier(2)
+        base = f"/api/v1/organizations/{org_id}"
+
+        def change_settings() -> int:
+            barrier.wait(timeout=5)
+            response = owner.patch(
+                base,
+                headers=csrf_headers(csrf),
+                json={"amount_limits": {"BRL": "100.00"}, "delay_window_days": 30},
+            )
+            return response.status_code
+
+        def create_audit() -> tuple[int, str]:
+            barrier.wait(timeout=5)
+            response = auditor.post(
+                f"{base}/audits",
+                headers={**csrf_headers(csrf), "Idempotency-Key": uuid.uuid4().hex},
+                json={"import_ids": [str(batch_id)]},
+            )
+            return response.status_code, response.json().get("id", "")
+
+        # The row lock must serialize the configuration update and audit snapshot transaction.
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            settings_future = pool.submit(change_settings)
+            audit_future = pool.submit(create_audit)
+            settings_status = settings_future.result()
+            audit_status, audit_id = audit_future.result()
+        assert settings_status == 200
+        assert audit_status == 202
+        with Session(make_engine()) as db:
+            run = db.get(AuditRun, uuid.UUID(audit_id))
+            assert run is not None
+            snapshot = run.config_snapshot
+            job_id = run.job_id
+        assert snapshot in (
+            {"settings_version": 1, "amount_limits": {}, "delay_window_days": 90},
+            {
+                "settings_version": 2,
+                "amount_limits": {"BRL": "100.00"},
+                "delay_window_days": 30,
+            },
+        )
+        assert job_id is not None
+        # Finish this test's queued job so later worker tests cannot claim synthetic input.
+        with Session(make_engine()) as db:
+            job = db.get(Job, job_id)
+            assert job is not None
+            job.status = "running"
+            db.commit()
+            process_audit_job(db, job_id)
 
 
 def test_audit_idempotency_findings_and_tenant_isolation(

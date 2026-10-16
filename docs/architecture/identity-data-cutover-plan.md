@@ -26,5 +26,6 @@ The current shared PostgreSQL instance can host separate schemas and roles. Sepa
 ## Gates and rollback
 
 - Run two-tenant authorization and ID-mismatch tests, role changes, session revocation, case history, concurrent import deduplication, concurrent settings update/audit snapshot, audit outbox recovery, and browser E2E.
+- The current shared-row implementation has a regression test requiring each concurrent audit snapshot to contain a matching settings version and values. Any data-ownership cutover must pass the same invariant.
 - Compare counts and sampled IDs before and after backfill. Fail closed on identity or settings-owner outage; do not silently use stale configuration.
 - Apply additive migrations first. Delay constraint removal and credential revocation until all tests and reconciliation checks pass. Preserve legacy data for rollback; no destructive migration or direct production operation is implied.
