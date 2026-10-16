@@ -9,7 +9,12 @@ from test_identity import create_org, create_user, csrf_headers, login
 from app.core.config import settings
 from app.core.errors import ApiError
 from app.features.identity import client as identity_client
-from app.features.identity.introspection import IntrospectionResult, MembershipResult, signature
+from app.features.identity.introspection import (
+    IntrospectionResult,
+    MembershipResult,
+    member_references_subject,
+    signature,
+)
 from app.identity_app import app as identity_app
 from app.main import app as business_app
 
@@ -23,6 +28,7 @@ def test_identity_app_has_only_identity_and_health_routes() -> None:
         assert not any("/imports" in path or "/audits" in path for path in paths)
         assert "/internal/v1/session/introspect" not in paths
         assert "/internal/v1/membership/authorize" not in paths
+        assert "/internal/v1/membership/references" not in paths
         assert client.get("/api/v1/health/live").headers["x-processmind-service"] == "identity"
 
 
@@ -152,3 +158,129 @@ def test_signed_introspection_and_business_fail_closed(monkeypatch: pytest.Monke
         monkeypatch.setattr(identity_client, "authorize_membership_remote", local_membership)
         assert identity.post("/api/v1/auth/logout", headers=csrf_headers(csrf)).status_code == 204
         assert business.get(f"/api/v1/organizations/{org_id}/audits").status_code == 401
+
+
+@pytest.mark.skipif(os.getenv("RUN_DB_TESTS") != "1", reason="PostgreSQL test database required")
+def test_member_references_are_tenant_scoped_and_preserve_inactive_history() -> None:
+    with (
+        TestClient(identity_app) as owner,
+        TestClient(identity_app) as member,
+        TestClient(identity_app) as outsider,
+    ):
+        owner_csrf = login(owner, create_user(owner, "reference-owner"))
+        member_email = create_user(member, "reference-member")
+        login(member, member_email)
+        outsider_csrf = login(outsider, create_user(outsider, "reference-outsider"))
+        org_id = create_org(owner, owner_csrf, "reference-org")
+        other_org = create_org(outsider, outsider_csrf, "reference-other")
+        member_user_id = member.get("/api/v1/auth/session").json()["user"]["id"]
+        added = owner.post(
+            f"/api/v1/organizations/{org_id}/users",
+            headers=csrf_headers(owner_csrf),
+            json={"email": member_email, "role": "viewer"},
+        )
+        assert added.status_code == 201, added.text
+        assert added.json()["user_id"] == member_user_id
+        cookie = owner.cookies.get("pm_session")
+        assert cookie is not None
+        path = "/internal/v1/membership/references"
+        payload = {
+            "session_token": cookie,
+            "organization_id": org_id,
+            "membership_ids": [],
+            "user_id": member_user_id,
+        }
+        timestamp = str(int(time.time()))
+        headers = {
+            "X-Internal-Timestamp": timestamp,
+            "X-Internal-Signature": signature(
+                timestamp,
+                cookie,
+                member_references_subject(uuid.UUID(org_id), [], uuid.UUID(member_user_id)),
+            ),
+        }
+        assert (
+            owner.post(
+                path, json=payload, headers={**headers, "X-Internal-Signature": "0" * 64}
+            ).status_code
+            == 403
+        )
+        lookup = owner.post(path, json=payload, headers=headers)
+        assert lookup.status_code == 200, lookup.text
+        assert lookup.json()["members"][0]["user_id"] == member_user_id
+        assert lookup.json()["members"][0]["status"] == "active"
+        member_id = uuid.UUID(lookup.json()["members"][0]["membership_id"])
+        by_id = {**payload, "membership_ids": [str(member_id)], "user_id": None}
+        by_id_time = str(int(time.time()))
+        by_id_headers = {
+            "X-Internal-Timestamp": by_id_time,
+            "X-Internal-Signature": signature(
+                by_id_time,
+                cookie,
+                member_references_subject(uuid.UUID(org_id), [member_id], None),
+            ),
+        }
+        by_id_response = owner.post(path, json=by_id, headers=by_id_headers)
+        assert by_id_response.status_code == 200
+        assert by_id_response.json()["members"][0]["user_id"] == member_user_id
+
+        outsider_cookie = outsider.cookies.get("pm_session")
+        outsider_user_id = outsider.get("/api/v1/auth/session").json()["user"]["id"]
+        assert outsider_cookie is not None
+        outsider_time = str(int(time.time()))
+        outsider_lookup = outsider.post(
+            path,
+            json={
+                "session_token": outsider_cookie,
+                "organization_id": other_org,
+                "membership_ids": [],
+                "user_id": outsider_user_id,
+            },
+            headers={
+                "X-Internal-Timestamp": outsider_time,
+                "X-Internal-Signature": signature(
+                    outsider_time,
+                    outsider_cookie,
+                    member_references_subject(
+                        uuid.UUID(other_org), [], uuid.UUID(outsider_user_id)
+                    ),
+                ),
+            },
+        )
+        assert outsider_lookup.status_code == 200, outsider_lookup.text
+        outsider_member_id = uuid.UUID(outsider_lookup.json()["members"][0]["membership_id"])
+        cross_tenant = {**payload, "membership_ids": [str(outsider_member_id)], "user_id": None}
+        cross_time = str(int(time.time()))
+        cross_headers = {
+            "X-Internal-Timestamp": cross_time,
+            "X-Internal-Signature": signature(
+                cross_time,
+                cookie,
+                member_references_subject(uuid.UUID(org_id), [outsider_member_id], None),
+            ),
+        }
+        cross_result = owner.post(path, json=cross_tenant, headers=cross_headers)
+        assert cross_result.status_code == 200
+        assert cross_result.json()["members"] == []
+
+        inactive = owner.patch(
+            f"/api/v1/organizations/{org_id}/users/{member_user_id}",
+            headers=csrf_headers(owner_csrf),
+            json={"status": "inactive"},
+        )
+        assert inactive.status_code == 200, inactive.text
+        historic = owner.post(path, json=payload, headers=headers)
+        assert historic.status_code == 200
+        assert historic.json()["members"][0]["status"] == "inactive"
+
+        foreign_payload = {**payload, "organization_id": other_org}
+        foreign_time = str(int(time.time()))
+        foreign_headers = {
+            "X-Internal-Timestamp": foreign_time,
+            "X-Internal-Signature": signature(
+                foreign_time,
+                cookie,
+                member_references_subject(uuid.UUID(other_org), [], uuid.UUID(member_user_id)),
+            ),
+        }
+        assert owner.post(path, json=foreign_payload, headers=foreign_headers).status_code == 404

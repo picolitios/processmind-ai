@@ -6,11 +6,19 @@ from typing import Annotated
 import httpx
 from fastapi import Depends, Header, Request
 from pydantic import ValidationError
-from sqlalchemy import select
+from sqlalchemy import or_, select
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.core.config import settings
 from app.core.errors import ApiError
-from app.features.identity.introspection import IntrospectionResult, MembershipResult, signature
+from app.features.identity.introspection import (
+    IntrospectionResult,
+    MemberReference,
+    MemberReferencesResult,
+    MembershipResult,
+    member_references_subject,
+    signature,
+)
 from app.features.identity.models import Membership, Organization, User, UserSession
 from app.features.identity.routes import require_membership as require_local_membership
 from app.features.identity.security import (
@@ -76,6 +84,75 @@ def authorize_membership_remote(token: str, organization_id: uuid.UUID) -> Membe
     if result.organization_id != organization_id:
         raise ApiError(503, "identity_unavailable", "Identidade indisponível")
     return result
+
+
+def resolve_member_references(
+    db: DB,
+    auth: AuthContext,
+    organization_id: uuid.UUID,
+    membership_ids: list[uuid.UUID] | None = None,
+    user_id: uuid.UUID | None = None,
+) -> list[MemberReference]:
+    ids = membership_ids or []
+    if len(ids) > 100:
+        raise ValueError("member_reference_limit")
+    if not ids and user_id is None:
+        return []
+    if settings.business_auth_mode == "database":
+        # Local mode is retained for rollback while case FKs still target the shared schema.
+        conditions: list[ColumnElement[bool]] = [Membership.id.in_(ids)] if ids else []
+        if user_id is not None:
+            conditions.append(Membership.user_id == user_id)
+        members = db.scalars(
+            select(Membership).where(
+                Membership.organization_id == organization_id, or_(*conditions)
+            )
+        ).all()
+        return [
+            MemberReference(membership_id=member.id, user_id=member.user_id, status=member.status)
+            for member in members
+        ]
+    timestamp = str(int(time.time()))
+    try:
+        with httpx.Client(timeout=3, trust_env=False) as http_client:
+            response = http_client.post(
+                f"{settings.identity_internal_url.rstrip('/')}/internal/v1/membership/references",
+                json={
+                    "session_token": auth.token,
+                    "organization_id": str(organization_id),
+                    "membership_ids": [str(member_id) for member_id in ids],
+                    "user_id": str(user_id) if user_id else None,
+                },
+                headers={
+                    "X-Internal-Timestamp": timestamp,
+                    "X-Internal-Signature": signature(
+                        timestamp,
+                        auth.token,
+                        member_references_subject(organization_id, ids, user_id),
+                    ),
+                },
+            )
+    except httpx.RequestError as exc:
+        raise ApiError(503, "identity_unavailable", "Identidade indisponível") from exc
+    if response.status_code == 401:
+        raise ApiError(401, "unauthorized", "Sessão inválida")
+    if response.status_code == 404:
+        raise ApiError(404, "not_found", "Organização não encontrada")
+    if response.status_code != 200:
+        raise ApiError(503, "identity_unavailable", "Identidade indisponível")
+    try:
+        result = MemberReferencesResult.model_validate(response.json())
+    except (ValueError, ValidationError) as exc:
+        raise ApiError(503, "identity_unavailable", "Identidade indisponível") from exc
+    if result.organization_id != organization_id:
+        raise ApiError(503, "identity_unavailable", "Identidade indisponível")
+    requested_ids = set(ids)
+    if any(
+        member.membership_id not in requested_ids and member.user_id != user_id
+        for member in result.members
+    ):
+        raise ApiError(503, "identity_unavailable", "Identidade indisponível")
+    return result.members
 
 
 def get_business_auth(db: DB, token: Annotated[str | None, Depends(cookie_scheme)]) -> AuthContext:

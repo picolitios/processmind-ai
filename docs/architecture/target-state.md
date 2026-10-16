@@ -17,7 +17,7 @@ Redis, a custom gateway, notification and analytics workers are not included in 
 flowchart LR
   UI[React UI / nginx] --> API[FastAPI business API]
   UI --> ID[FastAPI identity process]
-  API -->|Signed session and membership introspection| ID
+  API -->|Signed session, membership and case reference lookups| ID
   API --> PG[(PostgreSQL)]
   ID --> PG
   PUB[Outbox publisher] --> PG
@@ -58,7 +58,7 @@ C4Container
   Rel(reviewer, web, "Uses")
   Rel(web, api, "Proxies business /api/v1 routes")
   Rel(web, identity, "Proxies auth and organization routes")
-  Rel(api, identity, "Introspects sessions, CSRF and membership")
+  Rel(api, identity, "Introspects sessions, CSRF, membership and case references")
   Rel(identity, db, "Sessions, users, memberships")
   Rel(api, db, "Commits audit, job, outbox")
   Rel(publisher, db, "Claims pending outbox rows")
