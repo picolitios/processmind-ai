@@ -8,8 +8,9 @@ from sqlalchemy import func, select
 from app.core.errors import ApiError
 from app.features.audit.models import AuditFinding, AuditRun
 from app.features.cases.models import AuditCase
+from app.features.identity.client import BusinessAuth as Auth
 from app.features.identity.routes import require_membership
-from app.features.identity.security import DB, Auth
+from app.features.identity.security import DB
 from app.features.ingestion.models import ImportBatch, Purchase, Supplier
 
 router = APIRouter(prefix="/api/v1/organizations/{organization_id}/analytics", tags=["analytics"])

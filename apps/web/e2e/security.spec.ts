@@ -14,6 +14,15 @@ test('web aplica headers e API desabilita cache', async ({ request, page }) => {
   const api = await request.get('/api/v1/health/ready')
   expect(api.ok()).toBeTruthy()
   expect(api.headers()['cache-control']).toBe('no-store')
+  expect(api.headers()['x-processmind-service']).toBeUndefined()
+
+  const identity = await request.get('/api/v1/auth/session')
+  expect(identity.status()).toBe(401)
+  expect(identity.headers()['x-processmind-service']).toBe('identity')
+
+  const organizations = await request.get('/api/v1/organizations')
+  expect(organizations.status()).toBe(401)
+  expect(organizations.headers()['x-processmind-service']).toBe('identity')
 
   const errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))

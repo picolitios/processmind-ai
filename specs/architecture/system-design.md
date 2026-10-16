@@ -2,10 +2,12 @@
 
 ## Limites
 
-SPA React chama API REST FastAPI. API e processos de worker compartilham serviços de domínio e PostgreSQL. Importação e IA usam polling de jobs persistidos; auditorias novas em Compose são despachadas por outbox e RabbitMQ. Arquivos originais ficam fora do diretório público e são acessados apenas pela API autenticada. Ollama só é chamado pelo worker de IA. O banco é a fonte de verdade para compras, regras, achados, casos e trilha.
+SPA React chama nginx, que encaminha autenticação, organizações e membros a um processo FastAPI de identidade e rotas empresariais à API FastAPI modular. Os dois processos ainda compartilham PostgreSQL e código de identidade; a propriedade exclusiva dos dados será uma migração posterior. Importação e IA usam polling de jobs persistidos; auditorias novas em Compose são despachadas por outbox e RabbitMQ. Arquivos originais ficam fora do diretório público e são acessados apenas pela API autenticada. Ollama só é chamado pelo worker de IA. O banco é a fonte de verdade para compras, regras, achados, casos e trilha.
 
 ```text
-Browser --cookie+CSRF--> nginx --> API /api/v1 --> PostgreSQL
+Browser --cookie+CSRF--> nginx --> identidade /api/v1/auth, /organizations --> PostgreSQL
+                            |
+                            +--> API empresarial /api/v1 --> PostgreSQL
                                               |                ^
                                               +--> arquivo     | jobs/resultado
 Outbox publisher <--------------------------- PostgreSQL       |

@@ -110,6 +110,10 @@ class AuthContext:
 
 
 def get_current_auth(db: DB, token: Annotated[str | None, Depends(cookie_scheme)]) -> AuthContext:
+    return authenticate_token(db, token)
+
+
+def authenticate_token(db: Session, token: str | None) -> AuthContext:
     if not token:
         raise ApiError(401, "unauthorized", "Sessão necessária")
     session = db.scalar(select(UserSession).where(UserSession.token_hash == digest(token)))

@@ -14,8 +14,10 @@ from app.core.errors import ApiError
 from app.features.audit.models import AuditFinding, AuditRun, FindingEvidence
 from app.features.audit.outbox import OutboxEvent
 from app.features.audit.rules import RULE_VERSION
+from app.features.identity.client import BusinessAuth as Auth
+from app.features.identity.client import BusinessCsrfAuth as CsrfAuth
 from app.features.identity.routes import log_event, parse_cursor, require_membership
-from app.features.identity.security import DB, Auth, CsrfAuth
+from app.features.identity.security import DB
 from app.features.ingestion.models import ImportBatch, Job
 
 router = APIRouter(prefix="/api/v1/organizations/{organization_id}")

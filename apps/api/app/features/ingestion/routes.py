@@ -9,9 +9,11 @@ from sqlalchemy import select
 
 from app.core.config import settings
 from app.core.errors import ApiError
+from app.features.identity.client import BusinessAuth as Auth
+from app.features.identity.client import BusinessCsrfAuth as CsrfAuth
 from app.features.identity.models import Organization
 from app.features.identity.routes import log_event, require_membership
-from app.features.identity.security import DB, Auth, CsrfAuth
+from app.features.identity.security import DB
 from app.features.ingestion.models import ImportBatch, ImportRow, Job, Purchase, Supplier
 from app.features.ingestion.parsing import preview, validate_mapping
 
