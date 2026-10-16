@@ -6,7 +6,6 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     DateTime,
-    ForeignKey,
     ForeignKeyConstraint,
     Index,
     Integer,
@@ -38,8 +37,8 @@ class AuditRun(Base):
     __tablename__ = "audit_runs"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    organization_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("organizations.id"))
-    requester_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id"))
+    organization_id: Mapped[uuid.UUID] = mapped_column(Uuid)
+    requester_id: Mapped[uuid.UUID] = mapped_column(Uuid)
     status: Mapped[str] = mapped_column(String(20), default="queued")
     rule_set_version: Mapped[str] = mapped_column(String(20))
     config_snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB)

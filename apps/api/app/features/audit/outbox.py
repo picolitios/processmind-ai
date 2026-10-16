@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import DateTime, ForeignKey, Index, String, Uuid, func, text
+from sqlalchemy import DateTime, Index, String, Uuid, func, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -13,7 +13,7 @@ class OutboxEvent(Base):
     __tablename__ = "outbox_events"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    organization_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("organizations.id"))
+    organization_id: Mapped[uuid.UUID] = mapped_column(Uuid)
     event_type: Mapped[str] = mapped_column(String(80))
     event_version: Mapped[int]
     envelope: Mapped[dict[str, Any]] = mapped_column(JSONB)

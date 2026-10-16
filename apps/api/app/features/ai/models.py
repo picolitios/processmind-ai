@@ -5,7 +5,6 @@ from typing import Any
 from sqlalchemy import (
     CheckConstraint,
     DateTime,
-    ForeignKey,
     ForeignKeyConstraint,
     Index,
     String,
@@ -23,8 +22,8 @@ class AIAnalysis(Base):
     __tablename__ = "ai_analyses"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    organization_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("organizations.id"))
-    requester_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id"))
+    organization_id: Mapped[uuid.UUID] = mapped_column(Uuid)
+    requester_id: Mapped[uuid.UUID] = mapped_column(Uuid)
     run_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     finding_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     job_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
