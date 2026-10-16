@@ -48,6 +48,38 @@ class Organization(Base):
     )
 
 
+class OrganizationConfigCommand(Base):
+    """Identity-owned durable request to apply an audit configuration version."""
+
+    __tablename__ = "organization_config_commands"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("organizations.id", ondelete="RESTRICT"), nullable=False
+    )
+    settings_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    kind: Mapped[str] = mapped_column(String(20), nullable=False)
+    amount_limits: Mapped[dict[str, str] | None] = mapped_column(JSONB)
+    delay_window_days: Mapped[int | None] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+    applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        UniqueConstraint(
+            "organization_id", "settings_version", name="uq_org_config_command_version"
+        ),
+        CheckConstraint("kind IN ('provision','update')", name="ck_org_config_command_kind"),
+        CheckConstraint(
+            "status IN ('pending','applied','blocked')", name="ck_org_config_command_status"
+        ),
+        Index("ix_org_config_command_status_created", "status", "created_at", "id"),
+    )
+
+
 class Membership(Base):
     __tablename__ = "organization_memberships"
 

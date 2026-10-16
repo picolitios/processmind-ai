@@ -12,7 +12,14 @@ from sqlalchemy.exc import IntegrityError
 from app.core.config import settings
 from app.core.errors import ApiError
 from app.features.audit.models import AuditConfiguration
-from app.features.identity.models import AuditEvent, Membership, Organization, User
+from app.features.identity.config_sync import complete_pending, pending_for_organizations
+from app.features.identity.models import (
+    AuditEvent,
+    Membership,
+    Organization,
+    OrganizationConfigCommand,
+    User,
+)
 from app.features.identity.schemas import (
     LoginInput,
     MemberInput,
@@ -215,6 +222,10 @@ def list_organizations(db: DB, auth: Auth) -> list[OrganizationView]:
         )
         .order_by(Organization.created_at, Organization.id)
     ).all()
+    if settings.audit_config_write_mode == "coordinated" and pending_for_organizations(
+        db, [org.id for org in organizations]
+    ):
+        raise ApiError(503, "audit_configuration_pending", "Configuração indisponível")
     return [organization_view(org) for org in organizations]
 
 
@@ -222,31 +233,73 @@ def list_organizations(db: DB, auth: Auth) -> list[OrganizationView]:
 def create_organization(
     data: OrganizationInput, request: Request, db: DB, auth: CsrfAuth
 ) -> OrganizationView:
-    org = Organization(name=data.name.strip(), slug=data.slug)
+    coordinated = settings.audit_config_write_mode == "coordinated"
+    org = Organization(
+        name=data.name.strip(), slug=data.slug,
+        status="provisioning" if coordinated else "active",
+    )
     db.add(org)
     try:
         db.flush()
-        # Provision the audit-owned settings in the same transaction as the tenant.
-        db.add(
-            AuditConfiguration(
-                organization_id=org.id,
-                settings_version=org.settings_version,
-                amount_limits=org.settings.get("amount_limits", {}),
-                delay_window_days=org.settings.get("delay_window_days", 90),
+        if coordinated:
+            # The durable command survives an audit-owner timeout or process crash.
+            db.add(
+                OrganizationConfigCommand(
+                    organization_id=org.id,
+                    settings_version=org.settings_version,
+                    kind="provision",
+                    amount_limits=org.settings.get("amount_limits", {}),
+                    delay_window_days=org.settings.get("delay_window_days", 90),
+                )
             )
-        )
+        else:
+            # Database mode preserves the previous shared-transaction rollback path.
+            db.add(
+                AuditConfiguration(
+                    organization_id=org.id,
+                    settings_version=org.settings_version,
+                    amount_limits=org.settings.get("amount_limits", {}),
+                    delay_window_days=org.settings.get("delay_window_days", 90),
+                )
+            )
         db.add(Membership(organization_id=org.id, user_id=auth.user.id, role="owner"))
         log_event(db, request, "organization.created", auth.user.id, "organization", org.id, org.id)
         db.commit()
     except IntegrityError as exc:
         db.rollback()
+        if coordinated:
+            existing = db.scalar(select(Organization).where(Organization.slug == data.slug))
+            if existing is not None and existing.name == data.name.strip():
+                owner = db.scalar(
+                    select(Membership).where(
+                        Membership.organization_id == existing.id,
+                        Membership.user_id == auth.user.id,
+                        Membership.role == "owner",
+                        Membership.status == "active",
+                    )
+                )
+                provision = db.scalar(
+                    select(OrganizationConfigCommand).where(
+                        OrganizationConfigCommand.organization_id == existing.id,
+                        OrganizationConfigCommand.kind == "provision",
+                    )
+                )
+                if owner is not None and provision is not None:
+                    # The creator may safely retry after losing the original response.
+                    return organization_view(complete_pending(db, existing.id))
         raise ApiError(409, "slug_conflict", "Identificador já utilizado") from exc
+    if coordinated:
+        org = complete_pending(db, org.id)
     return organization_view(org)
 
 
 @organizations_router.get("/{organization_id}", response_model=OrganizationView)
 def get_organization(organization_id: uuid.UUID, db: DB, auth: Auth) -> OrganizationView:
     org, _ = require_membership(db, auth, organization_id)
+    if settings.audit_config_write_mode == "coordinated" and pending_for_organizations(
+        db, [organization_id]
+    ):
+        raise ApiError(503, "audit_configuration_pending", "Configuração indisponível")
     return organization_view(org)
 
 
@@ -262,19 +315,44 @@ def update_organization(
     changes = data.model_dump(exclude_unset=True)
     if not changes:
         raise ApiError(422, "validation_error", "Nenhuma configuração informada")
+    coordinated = settings.audit_config_write_mode == "coordinated"
+    if coordinated and pending_for_organizations(db, [organization_id]):
+        # Complete the earlier version before accepting another update.
+        db.rollback()
+        complete_pending(db, organization_id)
+        org, _ = require_membership(db, auth, organization_id, {"owner", "admin"}, for_update=True)
+    if coordinated and {**org.settings, **changes} == org.settings:
+        # Repeating an already confirmed update does not allocate a new version.
+        db.rollback()
+        return organization_view(org)
     org.settings = {**org.settings, **changes}
     org.settings_version += 1
-    # Transitional atomic write keeps rollback data and the audit snapshot aligned.
-    audit_config = db.get(AuditConfiguration, org.id, with_for_update=True)
-    if audit_config is None:
-        raise ApiError(503, "audit_configuration_missing", "Configuração de auditoria indisponível")
-    audit_config.settings_version = org.settings_version
-    audit_config.amount_limits = org.settings.get("amount_limits", {})
-    audit_config.delay_window_days = org.settings.get("delay_window_days", 90)
+    if coordinated:
+        db.add(
+            OrganizationConfigCommand(
+                organization_id=org.id,
+                settings_version=org.settings_version,
+                kind="update",
+                amount_limits=org.settings.get("amount_limits", {}),
+                delay_window_days=org.settings.get("delay_window_days", 90),
+            )
+        )
+    else:
+        # The legacy mode still supports a fully atomic rollback on the shared database.
+        audit_config = db.get(AuditConfiguration, org.id, with_for_update=True)
+        if audit_config is None:
+            raise ApiError(
+                503, "audit_configuration_missing", "Configuração de auditoria indisponível"
+            )
+        audit_config.settings_version = org.settings_version
+        audit_config.amount_limits = org.settings.get("amount_limits", {})
+        audit_config.delay_window_days = org.settings.get("delay_window_days", 90)
     log_event(
         db, request, "organization.settings_changed", auth.user.id, "organization", org.id, org.id
     )
     db.commit()
+    if coordinated:
+        org = complete_pending(db, org.id)
     return organization_view(org)
 
 

@@ -23,7 +23,9 @@ BUSINESS_TENANT_TABLES = (
     "purchases",
     "suppliers",
 )
-IDENTITY_TENANT_TABLES = frozenset({"audit_events", "organization_memberships"})
+IDENTITY_TENANT_TABLES = frozenset({
+    "audit_events", "organization_config_commands", "organization_memberships"
+})
 
 
 @dataclass(frozen=True)

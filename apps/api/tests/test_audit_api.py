@@ -12,6 +12,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from test_audit_config_coordination import apply_through_private_api
 from test_identity import create_org, create_user, csrf_headers, login
 
 from app.core.config import settings
@@ -28,12 +29,18 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-@pytest.mark.parametrize("config_mode", ["legacy", "owned"])
+@pytest.mark.parametrize(
+    ("config_mode", "write_mode"),
+    [("legacy", "database"), ("owned", "database"), ("owned", "coordinated")],
+)
 def test_audit_snapshot_stays_version_consistent_during_settings_update(
-    config_mode: str, monkeypatch: pytest.MonkeyPatch
+    config_mode: str, write_mode: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(settings, "audit_config_mode", config_mode)
-    with TestClient(app) as owner, TestClient(app) as auditor:
+    monkeypatch.setattr(settings, "audit_config_write_mode", write_mode)
+    with TestClient(app) as owner, TestClient(app) as auditor, TestClient(app) as audit_private:
+        if write_mode == "coordinated":
+            apply_through_private_api(monkeypatch, audit_private)
         owner_email = create_user(owner, "snapshot-owner")
         csrf = login(owner, owner_email)
         org_id = create_org(owner, csrf, "snapshot-org")
