@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     ollama_timeout_seconds: int = Field(default=30, ge=1, le=120)
     audit_dispatch_mode: str = "database"
     audit_config_mode: str = "legacy"
+    business_event_write_mode: str = "dual"
     rabbitmq_host: str = "127.0.0.1"
     rabbitmq_user: str = "guest"
     rabbitmq_password: str = "guest"
@@ -29,6 +30,8 @@ class Settings(BaseSettings):
             raise ValueError("AUDIT_DISPATCH_MODE must be database or broker")
         if self.audit_config_mode not in {"legacy", "owned"}:
             raise ValueError("AUDIT_CONFIG_MODE must be legacy or owned")
+        if self.business_event_write_mode not in {"dual", "owned"}:
+            raise ValueError("BUSINESS_EVENT_WRITE_MODE must be dual or owned")
         if self.business_auth_mode not in {"database", "identity"}:
             raise ValueError("BUSINESS_AUTH_MODE must be database or identity")
         if self.app_env != "local" and (

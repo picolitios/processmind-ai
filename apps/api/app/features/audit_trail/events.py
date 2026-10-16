@@ -5,6 +5,7 @@ from typing import Any
 from fastapi import Request
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.features.audit_trail.models import BusinessAuditEvent
 from app.features.identity.models import AuditEvent
 
@@ -19,7 +20,7 @@ def append_business_event(
     metadata: dict[str, Any] | None = None,
     correlation_id: str | None = None,
 ) -> None:
-    """Append both representations atomically until the legacy reader can be retired."""
+    """Append the owned event; optionally mirror it for legacy-code rollback."""
     event_id = uuid.uuid4()
     occurred_at = datetime.now(UTC)
     fields = {
@@ -34,7 +35,9 @@ def append_business_event(
         "occurred_at": occurred_at,
     }
     db.add(BusinessAuditEvent(**fields))
-    db.add(AuditEvent(**fields))
+    # Dual mode remains available until the previous application version is retired.
+    if settings.business_event_write_mode == "dual":
+        db.add(AuditEvent(**fields))
 
 
 def log_business_event(

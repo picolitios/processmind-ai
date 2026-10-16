@@ -39,6 +39,7 @@ services:
       UPLOAD_DIR: /data/uploads
       AUDIT_DISPATCH_MODE: broker
       AUDIT_CONFIG_MODE: ${AUDIT_CONFIG_MODE:-owned}
+      BUSINESS_EVENT_WRITE_MODE: ${BUSINESS_EVENT_WRITE_MODE:-owned}
       BUSINESS_AUTH_MODE: identity
       IDENTITY_INTERNAL_URL: http://identity:8000
     volumes:
@@ -99,6 +100,7 @@ services:
       OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma3:4b}
       OLLAMA_TIMEOUT_SECONDS: ${OLLAMA_TIMEOUT_SECONDS:-30}
       AUDIT_DISPATCH_MODE: broker
+      BUSINESS_EVENT_WRITE_MODE: ${BUSINESS_EVENT_WRITE_MODE:-owned}
     volumes:
       - upload_data:/data/uploads
     depends_on:
@@ -131,6 +133,7 @@ services:
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-change-me-local}
       AUTH_HASH_KEY: ${AUTH_HASH_KEY:-local-only-replace-before-production}
       AUDIT_DISPATCH_MODE: broker
+      BUSINESS_EVENT_WRITE_MODE: ${BUSINESS_EVENT_WRITE_MODE:-owned}
     depends_on:
       db:
         condition: service_healthy

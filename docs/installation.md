@@ -42,7 +42,13 @@ docker compose build api identity worker audit-publisher audit-consumer web
 docker compose run --rm --no-deps api alembic upgrade head
 ```
 
-Antes de ativar a leitura `AUDIT_CONFIG_MODE=owned` em uma instalação existente, compare a contagem das duas tabelas e procure divergências de versão e valores. As contagens devem ser iguais e a segunda consulta deve retornar `0`; execute-as após a migração e antes de recriar a API. O Compose já seleciona `owned` para a API. Verifique também que a contagem de eventos de negócios legados e novos seja igual. Em caso de divergência, retome a imagem anterior e investigue a cópia. Para rollback de leitura, selecione `AUDIT_CONFIG_MODE=legacy` e retenha ambas as tabelas.
+Antes de ativar a leitura `AUDIT_CONFIG_MODE=owned` em uma instalação existente, compare a contagem das duas tabelas e procure divergências de versão e valores. As contagens devem ser iguais e a segunda consulta deve retornar `0`; execute-as após a migração e antes de recriar a API. O Compose já seleciona `owned` para a API. Para rollback de leitura, selecione `AUDIT_CONFIG_MODE=legacy` e retenha ambas as tabelas.
+
+Antes de ativar `BUSINESS_EVENT_WRITE_MODE=owned` na API, no worker e no consumidor, execute a reconciliação abaixo com os escritores parados. Exija `status=clean` e `owned_only=legacy_only=conflicts=0`. Se houver divergência, mantenha `BUSINESS_EVENT_WRITE_MODE=dual` e investigue. O Compose seleciona `owned` após essa verificação; para uma instalação que ainda não passou pelo gate, defina `BUSINESS_EVENT_WRITE_MODE=dual` no `.env` até concluí-lo.
+
+```powershell
+docker compose run --rm --no-deps api python -m app.db.reconcile_business_events
+```
 
 Se o código antigo processar alterações durante um rollback, repita uma reconciliação revisada das duas cópias antes de reativar a versão nova. A migração Alembic já aplicada não repete automaticamente o backfill.
 
@@ -61,12 +67,9 @@ WHERE a.organization_id IS NULL
       CASE WHEN o.settings ? 'delay_window_days'
            THEN (o.settings->>'delay_window_days')::integer ELSE 90 END;
 
-SELECT (SELECT count(*) FROM audit_events
-        WHERE organization_id IS NOT NULL
-          AND split_part(action, '.', 1)
-              IN ('import', 'audit', 'ai', 'finding', 'case')) AS legacy_business_events,
-       (SELECT count(*) FROM business_audit_events) AS business_audit_events;
 ```
+
+Se precisar voltar à imagem anterior depois de operar em `owned`, pare API, worker e consumidor; execute `docker compose run --rm --no-deps api python -m app.db.reconcile_business_events --restore-legacy` antes de reiniciar a imagem antiga. Exija as três contagens de divergência zeradas após a restauração. O comando só adiciona cópias ausentes; nunca corrige conteúdo conflitante automaticamente.
 
 Após a verificação, recrie os serviços:
 
