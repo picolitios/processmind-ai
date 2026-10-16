@@ -6,7 +6,7 @@ Status: migration design. No schema or credential cutover is authorized by this 
 
 | Dependency | Current reason | Exit condition |
 | --- | --- | --- |
-| `organizations` | Audit creation locks the row while copying `settings_version`, `amount_limits` and `delay_window_days`; upload locks it to serialize same-tenant deduplication | Decide the owner of audit settings; preserve a versioned snapshot and replace the upload lock with a business-owned tenant lock |
+| `organizations` | Audit creation locks the row while copying `settings_version`, `amount_limits` and `delay_window_days`; upload previously locked it to serialize same-tenant deduplication | Decide the owner of audit settings and preserve a versioned snapshot; import deduplication uses its own transaction-scoped advisory lock |
 | `organization_memberships` | Case FKs reference assignee and comment author; identity validates active membership and resolves display IDs through private contracts | Keep historical UUIDs and tenant validation after removing cross-domain FKs; reconcile references before any constraint change |
 | `users` | Imports, audits and AI jobs store actor UUIDs with FKs | Validate the actor through identity at request time, retain immutable UUIDs, and reconcile all existing references |
 | `audit_events` | Identity, business routes and workers append events inside the same transaction as their domain change | Choose an owner and event delivery contract that preserves atomic recording or a durable outbox; do not replace it with best-effort HTTP |
@@ -17,7 +17,7 @@ The current shared PostgreSQL instance can host separate schemas and roles. Sepa
 ## Safe sequence
 
 1. Define the audit-settings owner and exact concurrent update behavior. Record the choice in an ADR and spec before changing code. Preserve the existing snapshot fields, public settings response and audit idempotency.
-2. Move upload deduplication locking to a business-owned row keyed by organization ID. Keep the unique/idempotency checks and tenant authorization. Test concurrent uploads of the same hash and key before removing the organization lock.
+2. Move upload deduplication locking to a domain-scoped transaction advisory key derived from the organization ID. Keep the unique/idempotency checks and tenant authorization. Test concurrent uploads of the same hash and key before removing the organization row lock.
 3. Resolve audit settings through the chosen owner. Backfill any new table from existing settings, compare row counts and versions, then switch reads/writes behind a controlled mode. Keep the legacy representation during verification and document rollback. Do not perform unreviewed dual writes across services.
 4. Decide audit-trail ownership. Use a transactionally written outbox wherever an event must remain atomic with a domain change. Verify duplicate delivery, reconciliation and replay before removing direct cross-service writes.
 5. Add non-destructive reference reconciliation for actor, tenant and membership UUIDs. Preserve business-to-business composite FKs. Drop cross-domain FKs only after verified contracts, historical references and deletion policy exist; no physical data deletion belongs to the cutover.

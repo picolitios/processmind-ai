@@ -5,6 +5,8 @@
 Evolução arquitetural pós-MVP: `specs/architecture/audit-events-v1.md` define o primeiro fluxo executável. A sequência, limites e rollback estão em `docs/architecture/migration-plan.md`. As Fases 0–8 abaixo são o histórico do MVP; não representam os estágios da evolução distribuída.
 Os primeiros recortes da Fase 2 estão em `specs/architecture/identity-boundary-v1.md`, `specs/architecture/membership-boundary-v1.md` e `specs/architecture/case-membership-lookup-v1.md`: processo e roteamento de identidade separados, sessão/CSRF, autorização de associação e referências de membros em casos via contratos privados, com banco ainda compartilhado. A Fase 2 completa exige substituir consultas diretas remanescentes e FKs entre domínios antes de declarar propriedade exclusiva dos dados.
 
+`specs/architecture/import-dedup-lock-v1.md` remove o bloqueio de deduplicação de importações da linha de organização sem alterar a semântica de concorrência. O snapshot de configuração da auditoria e as FKs entre domínios permanecem pendentes de migração.
+
 Objetivo: entregar primeiro a especificação coerente e depois uma fundação executável. Fase 0 altera `specs/`, `AGENTS.md` e `README.md`; Fase 1 cria `apps/api`, `apps/web`, `infra`, `compose.yaml`, migrações e CI. Validações: revisão cruzada, parse OpenAPI, execução local, testes, lint, tipos e build quando houver código.
 
 ## Backlog priorizado

@@ -1,4 +1,5 @@
 import os
+import threading
 import uuid
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
@@ -6,6 +7,7 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from httpx import Response
 from openpyxl import Workbook
 from test_identity import create_org, create_user, csrf_headers, login
 
@@ -21,6 +23,42 @@ HEADERS = (
 VALID = "P-1,S-1,2025-01-01,SKU-1,2,10.00,BRL,20.00\n"
 INVALID = "P-2,S-1,2025-01-02,SKU-1,bad,10.00,BRL,20.00\n"
 REPEATED_ID = "P-1,S-2,2025-01-03,SKU-2,1,10.00,BRL,10.00\n"
+
+
+@pytest.mark.skipif(os.getenv("RUN_DB_TESTS") != "1", reason="PostgreSQL required")
+def test_concurrent_upload_deduplication_and_idempotency(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(settings, "upload_dir", str(tmp_path))
+    with TestClient(app) as first, TestClient(app) as second:
+        csrf = login(first, create_user(first, "dedup-owner"))
+        org_id = create_org(first, csrf, "dedup-org")
+        cookie = first.cookies.get("pm_session")
+        assert cookie is not None
+        second.cookies.set("pm_session", cookie)
+        path = f"/api/v1/organizations/{org_id}/imports"
+
+        def upload_pair(payload: bytes, key: str | None = None) -> list[Response]:
+            # Release both clients together so the database lock arbitrates concurrent requests.
+            barrier = threading.Barrier(2)
+
+            def upload(client: TestClient) -> Response:
+                barrier.wait(timeout=5)
+                headers = csrf_headers(csrf)
+                if key:
+                    headers["Idempotency-Key"] = key
+                return client.post(path, headers=headers, files={"file": ("same.csv", payload)})
+
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                return list(pool.map(upload, (first, second)))
+
+        duplicate = upload_pair((HEADERS + VALID).encode())
+        assert sorted(response.status_code for response in duplicate) == [201, 409]
+        assert any(response.json().get("code") == "duplicate_file" for response in duplicate)
+
+        idempotent = upload_pair((HEADERS + VALID.replace("P-1", "P-3")).encode(), uuid.uuid4().hex)
+        assert [response.status_code for response in idempotent] == [201, 201]
+        assert idempotent[0].json()["id"] == idempotent[1].json()["id"]
 
 
 @pytest.mark.skipif(os.getenv("RUN_DB_TESTS") != "1", reason="PostgreSQL required")
