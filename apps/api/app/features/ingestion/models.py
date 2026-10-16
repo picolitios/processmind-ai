@@ -7,7 +7,6 @@ from sqlalchemy import (
     CheckConstraint,
     Date,
     DateTime,
-    ForeignKey,
     ForeignKeyConstraint,
     Index,
     Integer,
@@ -27,8 +26,8 @@ class ImportBatch(Base):
     __tablename__ = "import_batches"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    organization_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("organizations.id"))
-    uploader_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id"))
+    organization_id: Mapped[uuid.UUID] = mapped_column(Uuid)
+    uploader_id: Mapped[uuid.UUID] = mapped_column(Uuid)
     sha256: Mapped[str] = mapped_column(String(64))
     original_name: Mapped[str] = mapped_column(String(255))
     private_storage_key: Mapped[str] = mapped_column(String(80), unique=True)
@@ -79,7 +78,7 @@ class Supplier(Base):
     __tablename__ = "suppliers"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    organization_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("organizations.id"))
+    organization_id: Mapped[uuid.UUID] = mapped_column(Uuid)
     external_id: Mapped[str] = mapped_column(String(160))
     name: Mapped[str | None] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -136,7 +135,7 @@ class Job(Base):
     __tablename__ = "jobs"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    organization_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("organizations.id"))
+    organization_id: Mapped[uuid.UUID] = mapped_column(Uuid)
     type: Mapped[str] = mapped_column(String(40))
     status: Mapped[str] = mapped_column(String(20), default="queued")
     payload_json: Mapped[dict[str, Any]] = mapped_column(JSONB)

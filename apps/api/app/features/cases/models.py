@@ -34,10 +34,6 @@ class AuditCase(Base):
             ["organization_id", "finding_id"],
             ["audit_findings.organization_id", "audit_findings.id"],
         ),
-        ForeignKeyConstraint(
-            ["organization_id", "assignee_membership_id"],
-            ["organization_memberships.organization_id", "organization_memberships.id"],
-        ),
         UniqueConstraint("organization_id", "id", name="uq_case_org_id"),
         UniqueConstraint("organization_id", "finding_id", name="uq_case_org_finding"),
         Index("ix_case_org_status_opened", "organization_id", "status", "opened_at", "id"),
@@ -61,10 +57,6 @@ class CaseComment(Base):
     __table_args__ = (
         ForeignKeyConstraint(
             ["organization_id", "case_id"], ["audit_cases.organization_id", "audit_cases.id"]
-        ),
-        ForeignKeyConstraint(
-            ["organization_id", "author_membership_id"],
-            ["organization_memberships.organization_id", "organization_memberships.id"],
         ),
         Index("ix_case_comment_org_case_time", "organization_id", "case_id", "created_at", "id"),
         CheckConstraint("length(trim(body)) BETWEEN 1 AND 5000", name="ck_case_comment_length"),

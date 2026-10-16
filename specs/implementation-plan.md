@@ -19,6 +19,8 @@ Os primeiros recortes da Fase 2 estão em `specs/architecture/identity-boundary-
 
 `specs/architecture/identity-reference-reconciliation-v1.md` define a verificação somente de leitura das referências de tenant, ator e membro antes de qualquer remoção de FK. O resultado local e os bloqueios restantes constam em `docs/architecture/reference-reconciliation-2026-10-16.md`.
 
+`specs/architecture/identity-reference-fk-cutover-v1.md` define o corte reversível das FKs entre negócios e identidade, com bloqueio temporário de exclusão física, validação de referências e downgrade integral. A separação de schemas, roles e credenciais continua posterior.
+
 Objetivo: entregar primeiro a especificação coerente e depois uma fundação executável. Fase 0 altera `specs/`, `AGENTS.md` e `README.md`; Fase 1 cria `apps/api`, `apps/web`, `infra`, `compose.yaml`, migrações e CI. Validações: revisão cruzada, parse OpenAPI, execução local, testes, lint, tipos e build quando houver código.
 
 ## Backlog priorizado
