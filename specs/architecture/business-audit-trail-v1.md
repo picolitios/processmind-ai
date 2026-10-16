@@ -1,5 +1,7 @@
 # Trilha de eventos de negócios v1
 
+O corte posterior da gravação dupla está definido em `business-audit-trail-cutover-v1.md`.
+
 As ações de importação, auditoria, IA, revisão de achados e casos pertencem ao domínio de negócios. A identidade conserva os eventos de usuário, sessão, organização e membros. A resposta de histórico do caso mantém o contrato atual.
 
 ## Incremento de migração

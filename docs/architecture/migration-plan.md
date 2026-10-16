@@ -26,10 +26,10 @@ The dedicated identity process is live, but exclusive database ownership is bloc
 | --- | --- | --- |
 | `UserSession` and `User` | Business API previously validated the session cookie directly | Signed, bounded identity introspection with fail-closed behavior and revocation tests now handles business routes in Compose; direct identity routes remain for compatibility |
 | `Organization` and `Membership` | Identity authorizes tenant membership and resolves case references through private contracts; audit reads an audit-owned configuration row in Compose but still locks the organization row, and identity writes both settings rows transactionally | Replace the transitional cross-domain write and row lock with a durable contract while preserving snapshot consistency |
-| `AuditEvent` | Business modules append a temporary legacy copy while their own append-only table serves case history | Reconcile both copies, then remove cross-domain writes with a reviewed rollback path |
+| `AuditEvent` | Business modules own an append-only trail; Compose now omits the temporary legacy write, while `dual` mode remains for rollback | Verify the copies before cutover and restore missing legacy IDs before reverting to an older image; retire the shared-database rollback path before credential isolation |
 | FKs to users, organizations and memberships | Jobs, audits, cases and evidence rely on shared referential integrity | Replace cross-domain FKs with validated identifiers and reconciliation before moving schemas |
 
-Do not remove the compatibility identity routes in the business API or revoke table access until these contracts and a reversible data migration pass two-tenant regression, revocation, E2E and failure tests. The audit configuration increment copies data and uses a temporary atomic write to both representations; no other domain has been cut over.
+Do not remove the compatibility identity routes in the business API or revoke table access until these contracts and a reversible data migration pass two-tenant regression, revocation, E2E and failure tests. The audit configuration increment copies data and uses a temporary atomic write to both representations. The business event trail now supports owned-only writes in Compose, but rollback restoration still needs shared-database access.
 
 The [identity data cutover plan](identity-data-cutover-plan.md) inventories the remaining table dependencies, sequence and release gates. ADR 0003 records audit ownership and the temporary shared lock.
 
