@@ -21,6 +21,11 @@ separado do banco principal do Compose. O schema inicial estava em
   verificação local não demonstra isolamento de credenciais;
   schemas, roles e retirada das rotas de compatibilidade continuam pendentes.
 
-O banco principal do Compose não recebeu a migração deste incremento durante
-esta verificação. Qualquer aplicação existente deve repetir reconciliação,
-upgrade e reconciliação antes de alterar credenciais ou permissões.
+Após o merge do PR #18, o banco principal do Compose também foi reconciliado,
+migrado para `6fd3a81b29c4` e reconciliado novamente. As 20 relações passaram
+sem referências ausentes ou membros de outro tenant. API, identidade,
+reconciliador, worker, publisher e consumer foram reconstruídos e iniciados;
+o fluxo de três testes E2E passou no schema novo.
+
+Qualquer outra aplicação deve repetir reconciliação, upgrade e reconciliação
+antes de alterar credenciais ou permissões.
