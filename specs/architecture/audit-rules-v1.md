@@ -1,6 +1,6 @@
 # Motor determinístico v1.0.0 (Fase 4)
 
-Escopo da execução: apenas `ImportBatch` concluídos selecionados na mesma organização. O snapshot de configuração e de versão é persistido em `AuditRun`; compras e erros de importação são lidos na transação do worker. Cada achado recebe fingerprint estável por execução, regra e IDs de origem. Nenhuma regra afirma fraude: os achados pedem revisão humana.
+Escopo da execução: apenas `ImportBatch` concluídos selecionados na mesma organização. O snapshot de configuração e de versão é persistido em `AuditRun`; uma alteração concorrente de configurações não pode produzir snapshot com versão e valores de estados diferentes. Compras e erros de importação são lidos na transação do worker. Cada achado recebe fingerprint estável por execução, regra e IDs de origem. Nenhuma regra afirma fraude: os achados pedem revisão humana.
 
 | Regra | Condição v1 | Severidade |
 | --- | --- | --- |
