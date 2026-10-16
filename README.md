@@ -25,9 +25,10 @@ Requirements: Docker Desktop with Compose. Python 3.12 and Node.js 24 are only n
 Copy-Item .env.example .env
 # Set POSTGRES_PASSWORD and the matching DATABASE_URL in .env.
 # Set a random AUTH_HASH_KEY of at least 32 characters.
-docker compose up -d --build db rabbitmq api identity
-docker compose exec -T api alembic upgrade head
-docker compose up -d --build worker audit-publisher audit-consumer web
+docker compose up -d db rabbitmq
+docker compose build api identity worker audit-publisher audit-consumer web
+docker compose run --rm --no-deps api alembic upgrade head
+docker compose up -d --no-build api identity worker audit-publisher audit-consumer web
 docker compose ps
 ```
 

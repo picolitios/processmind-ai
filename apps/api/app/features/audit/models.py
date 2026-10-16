@@ -22,6 +22,17 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.db.base import Base
 
 
+class AuditConfiguration(Base):
+    """Versioned audit settings owned by the audit domain."""
+
+    __tablename__ = "audit_configurations"
+
+    organization_id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True)
+    settings_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    amount_limits: Mapped[dict[str, str] | None] = mapped_column(JSONB, nullable=True)
+    delay_window_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+
 class AuditRun(Base):
     __tablename__ = "audit_runs"
 

@@ -17,9 +17,10 @@ Copy-Item .env.example .env
 Edite `.env` antes de iniciar os serviços. Defina `POSTGRES_PASSWORD` com uma senha local própria e use o mesmo valor na URL `DATABASE_URL`. Defina `AUTH_HASH_KEY` com uma string aleatória de pelo menos 32 caracteres. Mantenha `.env` fora do Git. `APP_ENV=local` é apropriado apenas para avaliação local.
 
 ```powershell
-docker compose up -d --build db rabbitmq api identity
-docker compose exec -T api alembic upgrade head
-docker compose up -d --build worker audit-publisher audit-consumer web
+docker compose up -d db rabbitmq
+docker compose build api identity worker audit-publisher audit-consumer web
+docker compose run --rm --no-deps api alembic upgrade head
+docker compose up -d --no-build api identity worker audit-publisher audit-consumer web
 docker compose ps
 ```
 
@@ -33,11 +34,35 @@ O banco deve aparecer como saudável antes da migração; API e web devem aparec
 
 Se o banco ainda estiver inicializando, espere o healthcheck e repita somente o comando que falhou. Execute migrações novamente após atualizar o código, antes de reiniciar o worker. Não use `docker compose down -v` em uma instalação que contenha dados a preservar.
 
-Para **atualizar uma instalação existente**, termine primeiro os jobs de auditoria antigos em modo `database`; em seguida, construa as imagens e aplique a migração aditiva com um contêiner temporário antes de recriar a API:
+Para **atualizar uma instalação existente**, termine primeiro os jobs de auditoria antigos em modo `database`. Pare API e identidade durante a cópia para impedir PATCH com o código antigo entre o backfill e a ativação da gravação sincronizada. Em seguida, construa as imagens e aplique a migração aditiva com um contêiner temporário:
 
 ```powershell
+docker compose stop api identity
 docker compose build api identity worker audit-publisher audit-consumer web
 docker compose run --rm --no-deps api alembic upgrade head
+```
+
+Antes de ativar a leitura `AUDIT_CONFIG_MODE=owned` em uma instalação existente, compare a contagem das duas tabelas e procure divergências de versão e valores. As contagens devem ser iguais e a segunda consulta deve retornar `0`; execute-as após a migração e antes de recriar a API. O Compose já seleciona `owned` para a API. Em caso de divergência, retome a imagem anterior e investigue a cópia. Para rollback de leitura, selecione `AUDIT_CONFIG_MODE=legacy` e retenha ambas as tabelas.
+
+```sql
+SELECT (SELECT count(*) FROM organizations) AS organizations,
+       (SELECT count(*) FROM audit_configurations) AS audit_configurations;
+
+SELECT count(*) FROM organizations o
+LEFT JOIN audit_configurations a ON a.organization_id = o.id
+WHERE a.organization_id IS NULL
+   OR a.settings_version IS DISTINCT FROM o.settings_version
+   OR a.amount_limits IS DISTINCT FROM
+      CASE WHEN o.settings ? 'amount_limits' THEN o.settings->'amount_limits'
+           ELSE '{}'::jsonb END
+   OR a.delay_window_days IS DISTINCT FROM
+      CASE WHEN o.settings ? 'delay_window_days'
+           THEN (o.settings->>'delay_window_days')::integer ELSE 90 END;
+```
+
+Após a verificação, recrie os serviços:
+
+```powershell
 docker compose up -d --no-build rabbitmq api identity worker audit-publisher audit-consumer web
 ```
 

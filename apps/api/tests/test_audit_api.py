@@ -16,7 +16,7 @@ from test_identity import create_org, create_user, csrf_headers, login
 
 from app.core.config import settings
 from app.db.engine import make_engine
-from app.features.audit.models import AuditRun
+from app.features.audit.models import AuditConfiguration, AuditRun
 from app.features.audit.worker import process_audit_job
 from app.features.identity.models import User
 from app.features.ingestion.models import ImportBatch, Job
@@ -28,7 +28,11 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-def test_audit_snapshot_stays_version_consistent_during_settings_update() -> None:
+@pytest.mark.parametrize("config_mode", ["legacy", "owned"])
+def test_audit_snapshot_stays_version_consistent_during_settings_update(
+    config_mode: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(settings, "audit_config_mode", config_mode)
     with TestClient(app) as owner, TestClient(app) as auditor:
         owner_email = create_user(owner, "snapshot-owner")
         csrf = login(owner, owner_email)
@@ -84,7 +88,12 @@ def test_audit_snapshot_stays_version_consistent_during_settings_update() -> Non
         assert audit_status == 202
         with Session(make_engine()) as db:
             run = db.get(AuditRun, uuid.UUID(audit_id))
+            audit_config = db.get(AuditConfiguration, uuid.UUID(org_id))
             assert run is not None
+            assert audit_config is not None
+            assert audit_config.settings_version == 2
+            assert audit_config.amount_limits == {"BRL": "100.00"}
+            assert audit_config.delay_window_days == 30
             snapshot = run.config_snapshot
             job_id = run.job_id
         assert snapshot in (
@@ -103,6 +112,49 @@ def test_audit_snapshot_stays_version_consistent_during_settings_update() -> Non
             job.status = "running"
             db.commit()
             process_audit_job(db, job_id)
+
+
+def test_owned_audit_configuration_missing_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "audit_config_mode", "owned")
+    with TestClient(app) as client:
+        email = create_user(client, "missing-config-owner")
+        token = login(client, email)
+        org_id = create_org(client, token, "missing-config-org")
+        with Session(make_engine()) as db:
+            config = db.get(AuditConfiguration, uuid.UUID(org_id))
+            assert config is not None
+            user_id = db.scalar(select(User.id).where(User.email == email))
+            assert user_id is not None
+            batch = ImportBatch(
+                organization_id=uuid.UUID(org_id),
+                uploader_id=user_id,
+                sha256=uuid.uuid4().hex,
+                original_name="missing-config.csv",
+                private_storage_key=uuid.uuid4().hex,
+                file_format="csv",
+                status="succeeded",
+                mapping={"columns": {}},
+            )
+            db.add(batch)
+            db.delete(config)
+            db.commit()
+            batch_id = batch.id
+        audit_response = client.post(
+            f"/api/v1/organizations/{org_id}/audits",
+            headers={**csrf_headers(token), "Idempotency-Key": uuid.uuid4().hex},
+            json={"import_ids": [str(batch_id)]},
+        )
+        assert audit_response.status_code == 503
+        assert audit_response.json()["code"] == "audit_configuration_missing"
+        response = client.patch(
+            f"/api/v1/organizations/{org_id}",
+            headers=csrf_headers(token),
+            json={"delay_window_days": 10},
+        )
+        assert response.status_code == 503
+        assert response.json()["code"] == "audit_configuration_missing"
 
 
 def test_audit_idempotency_findings_and_tenant_isolation(

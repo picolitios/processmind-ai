@@ -38,6 +38,7 @@ services:
       AUTH_HASH_KEY: ${AUTH_HASH_KEY:-local-only-replace-before-production}
       UPLOAD_DIR: /data/uploads
       AUDIT_DISPATCH_MODE: broker
+      AUDIT_CONFIG_MODE: ${AUDIT_CONFIG_MODE:-owned}
       BUSINESS_AUTH_MODE: identity
       IDENTITY_INTERNAL_URL: http://identity:8000
     volumes:

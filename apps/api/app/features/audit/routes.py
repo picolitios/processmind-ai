@@ -11,7 +11,7 @@ from sqlalchemy import and_, or_, select
 
 from app.core.config import settings
 from app.core.errors import ApiError
-from app.features.audit.models import AuditFinding, AuditRun, FindingEvidence
+from app.features.audit.models import AuditConfiguration, AuditFinding, AuditRun, FindingEvidence
 from app.features.audit.outbox import OutboxEvent
 from app.features.audit.rules import RULE_VERSION
 from app.features.identity.client import BusinessAuth as Auth
@@ -113,11 +113,24 @@ def create_audit(
     ).all()
     if len(batches) != len(import_ids):
         raise ApiError(422, "invalid_imports", "Importações inexistentes ou não concluídas")
-    snapshot = {
-        "settings_version": org.settings_version,
-        "amount_limits": org.settings.get("amount_limits", {}),
-        "delay_window_days": org.settings.get("delay_window_days", 90),
-    }
+    if settings.audit_config_mode == "owned":
+        # Lock after the organization row, matching the settings writer's order.
+        audit_config = db.get(AuditConfiguration, organization_id, with_for_update=True)
+        if audit_config is None:
+            raise ApiError(
+                503, "audit_configuration_missing", "Configuração de auditoria indisponível"
+            )
+        snapshot = {
+            "settings_version": audit_config.settings_version,
+            "amount_limits": audit_config.amount_limits,
+            "delay_window_days": audit_config.delay_window_days,
+        }
+    else:
+        snapshot = {
+            "settings_version": org.settings_version,
+            "amount_limits": org.settings.get("amount_limits", {}),
+            "delay_window_days": org.settings.get("delay_window_days", 90),
+        }
     run = AuditRun(
         organization_id=organization_id,
         requester_id=auth.user.id,
