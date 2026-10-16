@@ -38,10 +38,32 @@ services:
       AUTH_HASH_KEY: ${AUTH_HASH_KEY:-local-only-replace-before-production}
       UPLOAD_DIR: /data/uploads
       AUDIT_DISPATCH_MODE: broker
+      BUSINESS_AUTH_MODE: identity
+      IDENTITY_INTERNAL_URL: http://identity:8000
     volumes:
       - upload_data:/data/uploads
     ports:
       - "127.0.0.1:8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      identity:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health/ready', timeout=3).close()"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  identity:
+    build: ./apps/api
+    command: ["uvicorn", "app.identity_app:app", "--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-processmind}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-processmind}
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:5173}
+      APP_ENV: ${APP_ENV:-local}
+      AUTH_HASH_KEY: ${AUTH_HASH_KEY:-local-only-replace-before-production}
+    ports:
+      - "127.0.0.1:8001:8000"
     depends_on:
       db:
         condition: service_healthy
@@ -56,6 +78,8 @@ services:
       - "127.0.0.1:5173:80"
     depends_on:
       api:
+        condition: service_healthy
+      identity:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]

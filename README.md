@@ -4,12 +4,12 @@ ProcessMind AI is a local-first B2B purchase audit platform. Teams import CSV/XL
 
 ## Implemented
 
-- React/Vite UI and a versioned FastAPI REST API with organization membership, RBAC, session cookies and CSRF protection.
+- React/Vite UI, a dedicated identity FastAPI process for client-facing auth/organization routes, and a business FastAPI process. Organization membership, RBAC, session cookies and CSRF behavior remain compatible with the MVP.
 - PostgreSQL 16 with Alembic migrations, tenant-scoped purchases, audit runs, findings, cases and action trail.
 - Separate import/AI worker and audit event path. An audit request commits a job and outbox event together; a publisher confirms delivery to RabbitMQ, and a consumer commits findings before acknowledging. The API exposes status and results.
 - Optional local Ollama explanations with validation and explicit fallback. Audit rules work without a model.
 
-The API remains a **modular monolith**. The RabbitMQ audit path is the first distributed boundary; identity, audit and AI are not yet independently deployed services or separately owned databases. Notification and analytics workers, an independent gateway, tracing and a conversational copilot are planned. See [current state](docs/architecture/current-state.md), [target state](docs/architecture/target-state.md) and [migration plan](docs/architecture/migration-plan.md).
+Business domains remain a **modular monolith**. Identity now runs as a separate process behind nginx; in Compose, business requests introspect sessions and CSRF through identity. Both processes still share PostgreSQL, and business routes read membership and organization tables directly. This is not yet exclusive data ownership. The RabbitMQ audit path is the first event boundary. Notification and analytics workers, tracing and a conversational copilot are planned. See [current state](docs/architecture/current-state.md), [target state](docs/architecture/target-state.md) and [migration plan](docs/architecture/migration-plan.md).
 
 ## Architecture choice
 
@@ -25,13 +25,13 @@ Requirements: Docker Desktop with Compose. Python 3.12 and Node.js 24 are only n
 Copy-Item .env.example .env
 # Set POSTGRES_PASSWORD and the matching DATABASE_URL in .env.
 # Set a random AUTH_HASH_KEY of at least 32 characters.
-docker compose up -d --build db rabbitmq api
+docker compose up -d --build db rabbitmq api identity
 docker compose exec -T api alembic upgrade head
 docker compose up -d --build worker audit-publisher audit-consumer web
 docker compose ps
 ```
 
-UI: <http://localhost:5173>. API docs: <http://localhost:8000/docs>. API readiness: <http://localhost:8000/api/v1/health/ready>. RabbitMQ management: <http://localhost:15672> (local credentials from `.env`). Follow the [installation guide](docs/installation.md) before upgrading an existing installation; apply the additive migration before restarting workers and drain old queued audits before switching dispatch modes. Preserve Compose volumes containing business data.
+UI: <http://localhost:5173>. Business API docs: <http://localhost:8000/docs>. Identity API docs: <http://localhost:8001/docs>. API readiness: <http://localhost:8000/api/v1/health/ready>. RabbitMQ management: <http://localhost:15672> (local credentials from `.env`). Follow the [installation guide](docs/installation.md) before upgrading an existing installation; apply the additive migration before restarting workers and drain old queued audits before switching dispatch modes. Preserve Compose volumes containing business data.
 For an existing installation, build images and run the additive migration in a one-off container **before** recreating the API; the [installation guide](docs/installation.md) has the exact commands.
 
 The [user guide](docs/user-guide.md) and [example CSV](examples/compras-exemplo.csv) cover import, audit, case review and dashboards.

@@ -3,7 +3,7 @@
 ## Pré-requisitos
 
 - Windows com PowerShell e Docker Desktop com Docker Compose ativo.
-- Portas locais `5432`, `5672`, `15672`, `8000` e `5173` disponíveis.
+- Portas locais `5432`, `5672`, `15672`, `8000`, `8001` e `5173` disponíveis.
 - Para executar testes fora dos contêineres: Python 3.12 e Node.js 24. O uso normal via Compose não exige essas instalações.
 
 ## Primeira execução
@@ -17,7 +17,7 @@ Copy-Item .env.example .env
 Edite `.env` antes de iniciar os serviços. Defina `POSTGRES_PASSWORD` com uma senha local própria e use o mesmo valor na URL `DATABASE_URL`. Defina `AUTH_HASH_KEY` com uma string aleatória de pelo menos 32 caracteres. Mantenha `.env` fora do Git. `APP_ENV=local` é apropriado apenas para avaliação local.
 
 ```powershell
-docker compose up -d --build db rabbitmq api
+docker compose up -d --build db rabbitmq api identity
 docker compose exec -T api alembic upgrade head
 docker compose up -d --build worker audit-publisher audit-consumer web
 docker compose ps
@@ -27,6 +27,7 @@ O banco deve aparecer como saudável antes da migração; API e web devem aparec
 
 - Interface: <http://localhost:5173>
 - Saúde da API: <http://localhost:8000/api/v1/health/ready>
+- Saúde da identidade: <http://localhost:8001/api/v1/health/ready>
 - OpenAPI interativo: <http://localhost:8000/docs>
 - Contrato versionado: [`specs/architecture/openapi.yaml`](../specs/architecture/openapi.yaml)
 
@@ -35,12 +36,14 @@ Se o banco ainda estiver inicializando, espere o healthcheck e repita somente o 
 Para **atualizar uma instalação existente**, termine primeiro os jobs de auditoria antigos em modo `database`; em seguida, construa as imagens e aplique a migração aditiva com um contêiner temporário antes de recriar a API:
 
 ```powershell
-docker compose build api worker audit-publisher audit-consumer web
+docker compose build api identity worker audit-publisher audit-consumer web
 docker compose run --rm --no-deps api alembic upgrade head
-docker compose up -d --no-build rabbitmq api worker audit-publisher audit-consumer web
+docker compose up -d --no-build rabbitmq api identity worker audit-publisher audit-consumer web
 ```
 
 O nginx resolve novamente o endereço da API após a recriação do contêiner.
+
+O nginx envia `/api/v1/auth/*` e as rotas de organização, configurações e membros para o processo de identidade. Importações, auditorias, achados, IA, casos e indicadores continuam na API de negócios. Ambos usam o mesmo PostgreSQL nesta etapa transitória; a [spec do limite de identidade](../specs/architecture/identity-boundary-v1.md) registra o alcance e as pendências de propriedade dos dados.
 
 Auditorias novas usam a outbox e RabbitMQ em Compose. `http://localhost:15672` mostra o broker local. A API persiste o pedido mesmo quando o broker estiver indisponível; o publicador retoma a entrega quando a conexão voltar. O worker antigo continua importação e IA. Antes de ativar o modo `broker` em uma instalação antiga, conclua as auditorias ainda enfileiradas em modo `database` (veja `docs/architecture/migration-plan.md`).
 

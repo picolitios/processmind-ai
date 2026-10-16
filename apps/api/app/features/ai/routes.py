@@ -9,8 +9,10 @@ from app.core.errors import ApiError
 from app.features.ai.models import AIAnalysis
 from app.features.ai.schemas import AIInput
 from app.features.audit.ai_context import validate_ai_target
+from app.features.identity.client import BusinessAuth as Auth
+from app.features.identity.client import BusinessCsrfAuth as CsrfAuth
 from app.features.identity.routes import log_event, require_membership
-from app.features.identity.security import DB, Auth, CsrfAuth
+from app.features.identity.security import DB
 from app.features.ingestion.models import Job
 
 router = APIRouter(prefix="/api/v1/organizations/{organization_id}/ai", tags=["ai"])

@@ -5,7 +5,7 @@ The target is a set of **logical boundaries**, extracted into independently depl
 | Boundary | Current owner | Possible later extraction |
 | --- | --- | --- |
 | Client edge | nginx + FastAPI middleware | Consolidated gateway when routing across independently deployed APIs is needed |
-| Identity | `features/identity` | Identity service with exclusive identity data ownership |
+| Identity | dedicated process running `features/identity` on shared database | Identity service with exclusive identity data ownership |
 | Import and audit | `features/ingestion`, `features/audit` | Audit service; owns purchases, audit runs, findings and event outbox |
 | AI explanation | `features/ai` | AI analysis service after independent scaling/security need |
 | Notification | None | Worker only after a real notification use case exists |
@@ -15,8 +15,11 @@ Redis, a custom gateway, notification and analytics workers are not included in 
 
 ```mermaid
 flowchart LR
-  UI[React UI / nginx] --> API[FastAPI modular API]
+  UI[React UI / nginx] --> API[FastAPI business API]
+  UI --> ID[FastAPI identity process]
+  API -->|Signed session introspection| ID
   API --> PG[(PostgreSQL)]
+  ID --> PG
   PUB[Outbox publisher] --> PG
   PUB --> MQ[(RabbitMQ)]
   MQ --> CON[Audit consumer]
@@ -45,14 +48,18 @@ C4Container
   title Containers in the first distributed increment
   Person(reviewer, "Company reviewer")
   Container(web, "Web/nginx", "React, nginx", "UI and API proxy")
-  Container(api, "API", "FastAPI", "Auth, import, audit, cases, analytics")
+  Container(api, "API", "FastAPI", "Import, audit, cases, analytics; compatibility identity routes")
+  Container(identity, "Identity", "FastAPI", "Public auth and organization routes")
   Container(publisher, "Outbox publisher", "Python", "Confirmed audit event publication")
   Container(consumer, "Audit consumer", "Python", "Idempotent audit processing")
   Container(worker, "Import/AI worker", "Python", "Existing database jobs")
   ContainerDb(db, "PostgreSQL", "PostgreSQL 16", "Tenant data, jobs, outbox")
   ContainerQueue(broker, "RabbitMQ", "RabbitMQ 4", "Durable audit queue and retries")
   Rel(reviewer, web, "Uses")
-  Rel(web, api, "Proxies /api/v1")
+  Rel(web, api, "Proxies business /api/v1 routes")
+  Rel(web, identity, "Proxies auth and organization routes")
+  Rel(api, identity, "Introspects sessions and CSRF")
+  Rel(identity, db, "Sessions, users, memberships")
   Rel(api, db, "Commits audit, job, outbox")
   Rel(publisher, db, "Claims pending outbox rows")
   Rel(publisher, broker, "Publishes with confirm")

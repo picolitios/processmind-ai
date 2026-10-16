@@ -19,11 +19,15 @@ class Settings(BaseSettings):
     rabbitmq_host: str = "127.0.0.1"
     rabbitmq_user: str = "guest"
     rabbitmq_password: str = "guest"
+    business_auth_mode: str = "database"
+    identity_internal_url: str = "http://127.0.0.1:8001"
 
     @model_validator(mode="after")
     def validate_production(self) -> "Settings":
         if self.audit_dispatch_mode not in {"database", "broker"}:
             raise ValueError("AUDIT_DISPATCH_MODE must be database or broker")
+        if self.business_auth_mode not in {"database", "identity"}:
+            raise ValueError("BUSINESS_AUTH_MODE must be database or identity")
         if self.app_env != "local" and (
             self.auth_hash_key == "local-only-replace-before-production"
             or len(self.auth_hash_key) < 32
