@@ -9,7 +9,7 @@ ProcessMind AI is a local-first B2B purchase audit platform. Teams import CSV/XL
 - Separate import/AI worker and audit event path. An audit request commits a job and outbox event together; a publisher confirms delivery to RabbitMQ, and a consumer commits findings before acknowledging. The API exposes status and results.
 - Optional local Ollama explanations with validation and explicit fallback. Audit rules work without a model.
 
-Business domains remain a **modular monolith**. Identity now runs as a separate process behind nginx; in Compose, business requests introspect sessions and CSRF through identity. Both processes still share PostgreSQL, and business routes read membership and organization tables directly. This is not yet exclusive data ownership. The RabbitMQ audit path is the first event boundary. Notification and analytics workers, tracing and a conversational copilot are planned. See [current state](docs/architecture/current-state.md), [target state](docs/architecture/target-state.md) and [migration plan](docs/architecture/migration-plan.md).
+Business domains remain a **modular monolith**. Identity now runs as a separate process behind nginx; in Compose, business requests ask identity to validate sessions, CSRF and tenant membership. Both processes still share PostgreSQL; business routes still read organization settings and case membership references directly. This is not yet exclusive data ownership. The RabbitMQ audit path is the first event boundary. Notification and analytics workers, tracing and a conversational copilot are planned. See [current state](docs/architecture/current-state.md), [target state](docs/architecture/target-state.md) and [migration plan](docs/architecture/migration-plan.md).
 
 ## Architecture choice
 

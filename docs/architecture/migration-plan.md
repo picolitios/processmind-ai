@@ -25,7 +25,7 @@ The dedicated identity process is live, but exclusive database ownership is bloc
 | Business dependency | Current use | Required contract or data change |
 | --- | --- | --- |
 | `UserSession` and `User` | Business API previously validated the session cookie directly | Signed, bounded identity introspection with fail-closed behavior and revocation tests now handles business routes in Compose; direct identity routes remain for compatibility |
-| `Organization` and `Membership` | Role checks, audit settings snapshot, import serialization, case assignee views | Tenant authorization and membership lookup contracts; explicit ownership of audit configuration |
+| `Organization` and `Membership` | Identity now authorizes business tenant membership through a signed private contract; audit settings snapshots, import serialization and case assignee/author views still read shared tables | Move organization settings and case membership references behind explicit contracts or business-owned projections before credential separation |
 | `AuditEvent` | Business modules append action trail in the same transaction | Business-owned audit trail or outbox event contract, preserving actor and tenant linkage |
 | FKs to users, organizations and memberships | Jobs, audits, cases and evidence rely on shared referential integrity | Replace cross-domain FKs with validated identifiers and reconciliation before moving schemas |
 

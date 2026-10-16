@@ -12,8 +12,9 @@ from app.features.audit.routes import make_cursor
 from app.features.cases.models import AuditCase, CaseComment
 from app.features.identity.client import BusinessAuth as Auth
 from app.features.identity.client import BusinessCsrfAuth as CsrfAuth
+from app.features.identity.client import require_business_membership as require_membership
 from app.features.identity.models import AuditEvent, Membership
-from app.features.identity.routes import log_event, parse_cursor, require_membership
+from app.features.identity.routes import log_event, parse_cursor
 from app.features.identity.security import DB
 
 router = APIRouter(prefix="/api/v1/organizations/{organization_id}")

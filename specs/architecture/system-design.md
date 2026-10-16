@@ -4,6 +4,8 @@
 
 SPA React chama nginx, que encaminha autenticação, organizações e membros a um processo FastAPI de identidade e rotas empresariais à API FastAPI modular. Os dois processos ainda compartilham PostgreSQL e código de identidade; a propriedade exclusiva dos dados será uma migração posterior. Importação e IA usam polling de jobs persistidos; auditorias novas em Compose são despachadas por outbox e RabbitMQ. Arquivos originais ficam fora do diretório público e são acessados apenas pela API autenticada. Ollama só é chamado pelo worker de IA. O banco é a fonte de verdade para compras, regras, achados, casos e trilha.
 
+No Compose, a API empresarial usa contratos privados assinados da identidade para validar sessão, CSRF e associação ativa com papel da organização em cada requisição. A leitura de configurações da organização e referências de membros em casos ainda usa o banco compartilhado.
+
 ```text
 Browser --cookie+CSRF--> nginx --> identidade /api/v1/auth, /organizations --> PostgreSQL
                             |
