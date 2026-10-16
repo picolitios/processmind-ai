@@ -6,7 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 from test_identity import create_org, create_user, csrf_headers, login
 
-from app.core.config import settings
+from app.core.config import Settings, settings
 from app.core.errors import ApiError
 from app.features.identity import client as identity_client
 from app.features.identity.introspection import (
@@ -30,6 +30,16 @@ def test_identity_app_has_only_identity_and_health_routes() -> None:
         assert "/internal/v1/membership/authorize" not in paths
         assert "/internal/v1/membership/references" not in paths
         assert client.get("/api/v1/health/live").headers["x-processmind-service"] == "identity"
+
+
+def test_remote_authorization_requires_audit_owned_configuration() -> None:
+    with pytest.raises(ValueError, match="AUDIT_CONFIG_MODE must be owned"):
+        Settings(
+            _env_file=None,
+            business_auth_mode="identity",
+            audit_config_mode="legacy",
+            audit_config_write_mode="database",
+        )
 
 
 @pytest.mark.skipif(os.getenv("RUN_DB_TESTS") != "1", reason="PostgreSQL test database required")
@@ -127,6 +137,12 @@ def test_signed_introspection_and_business_fail_closed(monkeypatch: pytest.Monke
             return MembershipResult.model_validate(result.json())
 
         monkeypatch.setattr(identity_client, "authorize_membership_remote", local_membership)
+        # A successful private authorization must not trigger a second SQL lookup
+        # of the organization's identity-owned row in the business process.
+        def unexpected_identity_query(*args: object, **kwargs: object) -> None:
+            raise AssertionError("business authorization queried an identity table")
+
+        monkeypatch.setattr(identity_client, "select", unexpected_identity_query)
         assert business.get(f"/api/v1/organizations/{org_id}/audits").status_code == 200
         assert business.get(f"/api/v1/organizations/{uuid.uuid4()}/audits").status_code == 404
         create_path = f"/api/v1/organizations/{org_id}/audits"

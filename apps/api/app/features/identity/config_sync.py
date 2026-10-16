@@ -61,7 +61,7 @@ def apply_remote(command: OrganizationConfigCommand) -> None:
 
 
 def incomplete_command(db: Session, organization_id: uuid.UUID) -> OrganizationConfigCommand | None:
-    """Find an unresolved command while its organization row is locked."""
+    """Serialize retries on the durable command without locking its organization."""
     return db.scalar(
         select(OrganizationConfigCommand)
         .where(
@@ -74,15 +74,16 @@ def incomplete_command(db: Session, organization_id: uuid.UUID) -> OrganizationC
 
 
 def complete_pending(db: Session, organization_id: uuid.UUID) -> Organization:
-    """Apply and acknowledge one pending command with a consistent lock order."""
-    organization = db.scalar(
-        select(Organization).where(Organization.id == organization_id).with_for_update()
-    )
+    """Apply and acknowledge a command without holding an identity row across HTTP."""
+    organization = db.scalar(select(Organization).where(Organization.id == organization_id))
     if organization is None:
         raise ApiError(404, "not_found", "Organização não encontrada")
     command = incomplete_command(db, organization_id)
     if command is None:
         db.rollback()
+        # Another retry may have completed activation while we waited for its
+        # command lock, so return the latest committed organization state.
+        db.refresh(organization)
         return organization
     if command.status == "blocked":
         db.rollback()
@@ -99,6 +100,13 @@ def complete_pending(db: Session, organization_id: uuid.UUID) -> Organization:
     command.status = "applied"
     command.applied_at = datetime.now(UTC)
     if command.kind == "provision":
+        # Activation needs a row lock only after the audit owner has committed.
+        organization = db.scalar(
+            select(Organization).where(Organization.id == organization_id).with_for_update()
+        )
+        if organization is None:
+            db.rollback()
+            raise ApiError(404, "not_found", "Organização não encontrada")
         organization.status = "active"
     db.commit()
     return organization

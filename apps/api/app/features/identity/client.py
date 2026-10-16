@@ -181,7 +181,7 @@ def require_business_membership(
     organization_id: uuid.UUID,
     allowed: set[str] | None = None,
     for_update: bool = False,
-) -> tuple[Organization, Membership]:
+) -> tuple[Organization | None, Membership]:
     if settings.business_auth_mode == "database":
         return require_local_membership(db, auth, organization_id, allowed, for_update)
     result = authorize_membership_remote(auth.token, organization_id)
@@ -189,12 +189,8 @@ def require_business_membership(
         raise ApiError(503, "identity_unavailable", "Identidade indisponível")
     if allowed is not None and result.role not in allowed:
         raise ApiError(403, "forbidden", "Permissão insuficiente")
-    statement = select(Organization).where(Organization.id == organization_id)
-    if for_update:
-        statement = statement.with_for_update()
-    organization = db.scalar(statement)
-    if organization is None or organization.status != "active":
-        raise ApiError(404, "not_found", "Organização não encontrada")
+    # Identity already checked the active organization and membership. A row lock
+    # here would cross the ownership boundary without protecting remote revocation.
     member = Membership(
         id=result.membership_id,
         organization_id=organization_id,
@@ -202,7 +198,7 @@ def require_business_membership(
         role=result.role,
         status="active",
     )
-    return organization, member
+    return None, member
 
 
 def require_business_csrf(

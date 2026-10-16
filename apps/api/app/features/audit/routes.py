@@ -115,7 +115,7 @@ def create_audit(
     if len(batches) != len(import_ids):
         raise ApiError(422, "invalid_imports", "Importações inexistentes ou não concluídas")
     if settings.audit_config_mode == "owned":
-        # Lock after the organization row, matching the settings writer's order.
+        # The audit-owned row serializes settings apply and snapshot creation.
         audit_config = db.get(AuditConfiguration, organization_id, with_for_update=True)
         if audit_config is None:
             raise ApiError(
@@ -127,6 +127,10 @@ def create_audit(
             "delay_window_days": audit_config.delay_window_days,
         }
     else:
+        if org is None:
+            raise ApiError(
+                503, "audit_configuration_missing", "Configuração de auditoria indisponível"
+            )
         snapshot = {
             "settings_version": org.settings_version,
             "amount_limits": org.settings.get("amount_limits", {}),
