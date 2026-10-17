@@ -5,13 +5,13 @@ The target is a set of **logical boundaries**, extracted into independently depl
 | Boundary | Current owner | Possible later extraction |
 | --- | --- | --- |
 | Client edge | nginx + FastAPI middleware | Consolidated gateway when routing across independently deployed APIs is needed |
-| Identity | dedicated process running `features/identity` on shared database | Identity service with exclusive identity data ownership |
+| Identity | dedicated process and `identity` schema with a scoped runtime credential | Physically separate identity database if operations justify it |
 | Import and audit | `features/ingestion`, `features/audit` | Audit service; owns purchases, audit runs, findings and event outbox |
 | AI explanation | `features/ai` | AI analysis service after independent scaling/security need |
 | Notification | None | Worker only after a real notification use case exists |
 | Analytics | `features/analytics` | Worker/materialized projections only if query load warrants it |
 
-Redis, a custom gateway, notification and analytics workers are not included in the first increment. The existing PostgreSQL instance can later host separate databases or schemas with separate credentials. Until then, modules remain one deployment and may use the shared transaction; independently deployed services must not read another service's private tables.
+Redis, a custom gateway, notification and analytics workers are not included in the first increment. The current PostgreSQL instance hosts separate schemas and runtime credentials. Identity and business remain in one instance and share a Python image; independently deployed services do not read another owner's private tables. Shared-transaction modes are retained only for rollback with the administrative credential.
 
 ```mermaid
 flowchart LR
