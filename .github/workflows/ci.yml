@@ -60,3 +60,49 @@ jobs:
         working-directory: apps/web
       - run: npm run build
         working-directory: apps/web
+  broker-recovery:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: processmind_test
+          POSTGRES_USER: processmind
+          POSTGRES_PASSWORD: processmind_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U processmind -d processmind_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      rabbitmq:
+        image: rabbitmq:4-management-alpine
+        env:
+          RABBITMQ_DEFAULT_USER: processmind_test
+          RABBITMQ_DEFAULT_PASS: processmind_test
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+psycopg://processmind:processmind_test@localhost:5432/processmind_test
+      RABBITMQ_HOST: localhost
+      RABBITMQ_USER: processmind_test
+      RABBITMQ_PASSWORD: processmind_test
+      RUN_DB_TESTS: '1'
+      RUN_BROKER_TESTS: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -e '.[dev]'
+        working-directory: apps/api
+      - run: alembic upgrade head
+        working-directory: apps/api
+      - run: pytest -q tests/test_audit_broker_recovery.py
+        working-directory: apps/api
