@@ -11,7 +11,7 @@ Acceptance: creating an audit through the existing REST API commits the audit ru
 
 ## Subsequent increments
 
-1. Stabilize contract and recovery tests; add queue depth, publish latency and worker metrics. The read-only diagnostics and v1 no-deletion retention policy are specified in `specs/architecture/audit-operations-v1.md`. Automated collection and a measured purge policy remain later work.
+1. Stabilize contract and recovery tests; add queue depth, publish latency and worker metrics. CI exercises the real broker outage/recovery path on an isolated stack. Read-only diagnostics and the v1 no-deletion retention policy are specified in `specs/architecture/audit-operations-v1.md`. Automated collection and a measured purge policy remain later work.
 2. Put identity routes behind a dedicated process and gateway rule while preserving the shared transaction model. Test tenant authorization and rollback. Then replace direct business-module identity table reads with explicit contracts and migrate FKs/credentials/schema before declaring exclusive data ownership.
 3. Extract audit/ingestion and AI on demonstrated scaling or security needs. Replace cross-domain table reads with versioned APIs/events and test authorization and reconciliation.
 4. Add notification and analytics consumers only when product requirements call for them. Extend CI with contract, browser, recovery and load evidence, then document deployment.
