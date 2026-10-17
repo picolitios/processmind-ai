@@ -7,7 +7,7 @@ Os primeiros recortes da Fase 2 estão em `specs/architecture/identity-boundary-
 
 A primeira entrega funcional da V2 é o copiloto conversacional definido em `specs/architecture/copilot-v2.md`. Backend, contrato, interface, guia e E2E dos modos normal e temporário compõem a mesma entrega; o modelo local precisa estar disponível para gerar respostas em vez da limitação explícita.
 
-`specs/architecture/import-dedup-lock-v1.md` remove o bloqueio de deduplicação de importações da linha de organização sem alterar a semântica de concorrência. O snapshot de configuração da auditoria e as FKs entre domínios permanecem pendentes de migração.
+`specs/architecture/import-dedup-lock-v1.md` removeu o bloqueio de deduplicação de importações da linha de organização sem alterar a semântica de concorrência. O snapshot de configuração da auditoria e as FKs entre domínios foram migrados nos incrementos posteriores descritos abaixo.
 
 `specs/architecture/audit-configuration-ownership-v1.md` define o primeiro incremento da migração do snapshot: tabela própria, backfill e leitura controlada com rollback. A gravação cruzada transitória e as FKs ainda impedem a declaração de isolamento de credenciais.
 
@@ -64,6 +64,7 @@ Objetivo: entregar primeiro a especificação coerente e depois uma fundação e
 - Fase 7: estabilização concluída em branch própria. Headers, cache, acessibilidade, ingestão de 50 mil linhas, concorrência e auditoria de dependências validados. Resultados e limites em `specs/testing/phase7-results.md` e `specs/testing/phase7-load-report.md`; CI remota e revisão do PR seguem o fluxo de integração.
 - Fase 8: instalação isolada com novos volumes, migração e E2E completos; guias, CSV de exemplo, capturas, OpenAPI e backlog futuro disponíveis. O relatório de aceite consta em `specs/testing/phase8-delivery.md`. PRs empilhados aguardam revisão e integração.
 - Versão 2, copiloto conversacional: política e aprovação por organização, chats normais/temporários, memória delimitada por tenant, citações verificadas e worker implementados. Painéis de achado/auditoria, configurações, guia e E2E dos dois modos foram acrescentados no PR da entrega. A disponibilidade efetiva de respostas depende do Ollama configurado; o fallback foi validado sem alterar auditorias ou casos.
+- Evolução distribuída, operação da auditoria: `specs/architecture/audit-operations-v1.md` define o diagnóstico agregado e somente de leitura da outbox, filas RabbitMQ e jobs de auditoria, com limiares opcionais. A retenção v1 preserva eventos publicados e dead letters até existir política de expurgo comprovada por volume e restauração.
 
 ## Plano de execução da Fase 6
 
