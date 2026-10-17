@@ -29,10 +29,20 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
-  api:
+  db-admin:
+    profiles: ["tools"]
     build: ./apps/api
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-processmind}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-processmind}
+      IDENTITY_DB_PASSWORD: ${IDENTITY_DB_PASSWORD:?Set IDENTITY_DB_PASSWORD in .env}
+      BUSINESS_DB_PASSWORD: ${BUSINESS_DB_PASSWORD:?Set BUSINESS_DB_PASSWORD in .env}
+    depends_on:
+      db:
+        condition: service_healthy
+  api:
+    build: ./apps/api
+    environment:
+      DATABASE_URL: postgresql+psycopg://processmind_business:${BUSINESS_DB_PASSWORD:?Set BUSINESS_DB_PASSWORD in .env}@db:5432/${POSTGRES_DB:-processmind}
       WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:5173}
       APP_ENV: ${APP_ENV:-local}
       AUTH_HASH_KEY: ${AUTH_HASH_KEY:-local-only-replace-before-production}
@@ -62,7 +72,7 @@ services:
     build: ./apps/api
     command: ["uvicorn", "app.identity_app:app", "--host", "0.0.0.0", "--port", "8000"]
     environment:
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-processmind}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-processmind}
+      DATABASE_URL: postgresql+psycopg://processmind_identity:${IDENTITY_DB_PASSWORD:?Set IDENTITY_DB_PASSWORD in .env}@db:5432/${POSTGRES_DB:-processmind}
       WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:5173}
       APP_ENV: ${APP_ENV:-local}
       AUTH_HASH_KEY: ${AUTH_HASH_KEY:-local-only-replace-before-production}
@@ -84,7 +94,7 @@ services:
     command: ["python", "-m", "app.features.identity.config_sync"]
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-processmind}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-processmind}
+      DATABASE_URL: postgresql+psycopg://processmind_identity:${IDENTITY_DB_PASSWORD:?Set IDENTITY_DB_PASSWORD in .env}@db:5432/${POSTGRES_DB:-processmind}
       AUTH_HASH_KEY: ${AUTH_HASH_KEY:-local-only-replace-before-production}
       AUDIT_CONFIG_MODE: ${AUDIT_CONFIG_MODE:-owned}
       AUDIT_INTERNAL_URL: http://api:8000
@@ -112,7 +122,7 @@ services:
     command: ["python", "-m", "app.features.ingestion.worker"]
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-processmind}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-processmind}
+      DATABASE_URL: postgresql+psycopg://processmind_business:${BUSINESS_DB_PASSWORD:?Set BUSINESS_DB_PASSWORD in .env}@db:5432/${POSTGRES_DB:-processmind}
       UPLOAD_DIR: /data/uploads
       AUTH_HASH_KEY: ${AUTH_HASH_KEY:-local-only-replace-before-production}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
@@ -130,7 +140,7 @@ services:
     command: ["python", "-m", "app.features.audit.broker", "publish"]
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-processmind}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-processmind}
+      DATABASE_URL: postgresql+psycopg://processmind_business:${BUSINESS_DB_PASSWORD:?Set BUSINESS_DB_PASSWORD in .env}@db:5432/${POSTGRES_DB:-processmind}
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_USER: ${RABBITMQ_USER:-processmind}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-change-me-local}
@@ -146,7 +156,7 @@ services:
     command: ["python", "-m", "app.features.audit.broker", "consume"]
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-processmind}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-processmind}
+      DATABASE_URL: postgresql+psycopg://processmind_business:${BUSINESS_DB_PASSWORD:?Set BUSINESS_DB_PASSWORD in .env}@db:5432/${POSTGRES_DB:-processmind}
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_USER: ${RABBITMQ_USER:-processmind}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-change-me-local}

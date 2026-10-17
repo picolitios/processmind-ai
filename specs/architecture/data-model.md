@@ -2,6 +2,8 @@
 
 Todas as PKs são UUID, timestamps são `timestamptz` UTC, quantidades e dinheiro são `numeric` (sem float). Campos `created_at` e `updated_at` existem nas entidades mutáveis; eventos e evidências são append-only. `organization_id` é obrigatório em toda entidade de negócio, inclusive jobs e análises. UUIDs não substituem autorização.
 
+As tabelas `User`, `Organization`, `OrganizationConfigCommand`, `OrganizationMembership`, `Session`, `LoginFailure` e `AuditEvent` pertencem ao schema `identity`. As demais entidades pertencem a `business`. A tabela técnica `alembic_version` permanece em `public`; apenas a credencial administrativa executa DDL e reconciliação entre schemas. Os papéis de runtime não têm privilégios no schema do outro domínio.
+
 | Entidade | Campos principais e relacionamentos | Constraints e índices essenciais |
 | --- | --- | --- |
 | User | email normalizado, password_hash, status | email único global; índice por status |
@@ -25,7 +27,7 @@ Todas as PKs são UUID, timestamps são `timestamptz` UTC, quantidades e dinheir
 | BusinessAuditEvent | id, organization_id, actor_user_id nullable, action, subject_type/id, metadata_json, correlation_id, occurred_at | trilha append-only de ações de negócios; cópia legada temporária para rollback; sem FK para identidade |
 | AIAnalysis | organization_id, run_id nullable, finding_id nullable, model/version, schema_version, response_json, status, evidence_hash | FK composta; referência a run ou finding; índice status/data |
 | Job | organization_id, type, status, payload_json, idempotency_key, attempt_count, lease_until, error_code | único `(organization_id,type,idempotency_key)`; índice `(status,lease_until)`; importação usa `idempotency_key = ImportBatch.id` para vínculo um a um |
-| OutboxEvent | organization_id, event_type/version, envelope, created_at, published_at | FK para organização; índice parcial de eventos não publicados por data; a criação da auditoria persiste job e evento na mesma transação |
+| OutboxEvent | organization_id, event_type/version, envelope, created_at, published_at | UUID de organização validado pela identidade no pedido, sem FK entre schemas; índice parcial de eventos não publicados por data; a criação da auditoria persiste job e evento na mesma transação |
 
 ## Integridade e retenção
 

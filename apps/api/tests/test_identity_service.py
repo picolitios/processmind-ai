@@ -17,6 +17,7 @@ from app.features.identity.introspection import (
 )
 from app.identity_app import app as identity_app
 from app.main import app as business_app
+from app.main import create_app
 
 
 def test_identity_app_has_only_identity_and_health_routes() -> None:
@@ -30,6 +31,17 @@ def test_identity_app_has_only_identity_and_health_routes() -> None:
         assert "/internal/v1/membership/authorize" not in paths
         assert "/internal/v1/membership/references" not in paths
         assert client.get("/api/v1/health/live").headers["x-processmind-service"] == "identity"
+
+
+def test_business_app_omits_identity_routes_in_remote_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "business_auth_mode", "identity")
+    paths = create_app().openapi()["paths"]
+    assert "/api/v1/auth/login" not in paths
+    assert "/api/v1/organizations" not in paths
+    assert "/api/v1/organizations/{organization_id}/users" not in paths
+    assert "/api/v1/organizations/{organization_id}/audits" in paths
 
 
 def test_remote_authorization_requires_audit_owned_configuration() -> None:

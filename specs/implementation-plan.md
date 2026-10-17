@@ -3,7 +3,7 @@
 ## Plano curto
 
 Evolução arquitetural pós-MVP: `specs/architecture/audit-events-v1.md` define o primeiro fluxo executável. A sequência, limites e rollback estão em `docs/architecture/migration-plan.md`. As Fases 0–8 abaixo são o histórico do MVP; não representam os estágios da evolução distribuída.
-Os primeiros recortes da Fase 2 estão em `specs/architecture/identity-boundary-v1.md`, `specs/architecture/membership-boundary-v1.md` e `specs/architecture/case-membership-lookup-v1.md`: processo e roteamento de identidade separados, sessão/CSRF, autorização de associação e referências de membros em casos via contratos privados, com banco ainda compartilhado. A Fase 2 completa exige substituir consultas diretas remanescentes e FKs entre domínios antes de declarar propriedade exclusiva dos dados.
+Os primeiros recortes da Fase 2 estão em `specs/architecture/identity-boundary-v1.md`, `specs/architecture/membership-boundary-v1.md` e `specs/architecture/case-membership-lookup-v1.md`: processo e roteamento de identidade separados, sessão/CSRF, autorização de associação e referências de membros em casos via contratos privados. O estado atual do Compose já separa schemas e credenciais de runtime, conforme `specs/architecture/identity-schema-credential-boundary-v1.md`; as descrições dos incrementos abaixo registram seu escopo histórico.
 
 `specs/architecture/import-dedup-lock-v1.md` remove o bloqueio de deduplicação de importações da linha de organização sem alterar a semântica de concorrência. O snapshot de configuração da auditoria e as FKs entre domínios permanecem pendentes de migração.
 
@@ -19,7 +19,7 @@ Os primeiros recortes da Fase 2 estão em `specs/architecture/identity-boundary-
 
 `specs/architecture/identity-reference-reconciliation-v1.md` define a verificação somente de leitura das referências de tenant, ator e membro antes de qualquer remoção de FK. O resultado local e os bloqueios restantes constam em `docs/architecture/reference-reconciliation-2026-10-16.md`.
 
-`specs/architecture/identity-reference-fk-cutover-v1.md` define o corte reversível das FKs entre negócios e identidade, com bloqueio temporário de exclusão física, validação de referências e downgrade integral. A separação de schemas, roles e credenciais continua posterior.
+`specs/architecture/identity-reference-fk-cutover-v1.md` define o corte reversível das FKs entre negócios e identidade, com bloqueio temporário de exclusão física, validação de referências e downgrade integral. `specs/architecture/identity-schema-credential-boundary-v1.md` define o incremento posterior, já aplicado no Compose, que move tabelas para schemas próprios e limita os papéis de runtime.
 
 Objetivo: entregar primeiro a especificação coerente e depois uma fundação executável. Fase 0 altera `specs/`, `AGENTS.md` e `README.md`; Fase 1 cria `apps/api`, `apps/web`, `infra`, `compose.yaml`, migrações e CI. Validações: revisão cruzada, parse OpenAPI, execução local, testes, lint, tipos e build quando houver código.
 

@@ -74,26 +74,49 @@ def references() -> tuple[Reference, ...]:
 
 def collect_report(connection: Connection) -> dict[str, object]:
     """Count missing and cross-tenant references in one caller-owned transaction."""
-    observed = set(
-        connection.scalars(
-            text(
-                "SELECT table_name FROM information_schema.columns "
-                "WHERE table_schema = current_schema() AND column_name = 'organization_id'"
-            )
-        ).all()
-    )
+    inspector = inspect(connection)
+    schemas = set(inspector.get_schema_names())
+    split = {"identity", "business"} <= schemas
+    if ("identity" in schemas or "business" in schemas) and not split:
+        return {
+            "status": "inconsistent",
+            "schema_errors": ["incomplete_domain_schemas"],
+            "checks": [],
+        }
+    table_schemas = {
+        name: ("identity" if name in IDENTITY_TENANT_TABLES
+               or name in {"organizations", "users", "login_failures", "user_sessions"}
+               else "business") if split else "public"
+        for name in {ref.source for ref in references()} | {ref.target for ref in references()}
+    }
+    observed = set(connection.scalars(text(
+        "SELECT table_name FROM information_schema.columns "
+        "WHERE table_schema IN ('identity', 'business') AND column_name = 'organization_id'"
+        if split else
+        "SELECT table_name FROM information_schema.columns "
+        "WHERE table_schema = 'public' AND column_name = 'organization_id'"
+    )).all())
     expected = set(BUSINESS_TENANT_TABLES) | IDENTITY_TENANT_TABLES
     schema_errors = [f"unclassified_tenant_table:{name}" for name in sorted(observed - expected)]
     schema_errors += [f"missing_tenant_table:{name}" for name in sorted(expected - observed)]
 
     metadata = MetaData()
-    available_tables = set(inspect(connection).get_table_names())
     table_names = {ref.source for ref in references()} | {ref.target for ref in references()}
-    schema_errors += [f"missing_table:{name}" for name in sorted(table_names - available_tables)]
+    available_tables = {
+        schema: set(inspector.get_table_names(schema=schema))
+        for schema in set(table_schemas.values())
+    }
+    schema_errors += [
+        f"missing_table:{name}" for name in sorted(table_names)
+        if name not in available_tables[table_schemas[name]]
+    ]
     if schema_errors:
         return {"status": "inconsistent", "schema_errors": schema_errors, "checks": []}
 
-    tables = {name: Table(name, metadata, autoload_with=connection) for name in table_names}
+    tables = {
+        name: Table(name, metadata, schema=table_schemas[name], autoload_with=connection)
+        for name in table_names
+    }
     checks: list[CheckResult] = []
     for ref in references():
         source, target = tables[ref.source], tables[ref.target]
