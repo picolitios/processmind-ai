@@ -114,6 +114,8 @@ A importação, auditoria, casos e indicadores funcionam sem Ollama. Para habili
 
 Com o Compose ativo, em `apps/web`: `npm ci`, `npx playwright install chromium`, `npm run test:e2e`. O E2E cria seus próprios dados de teste no banco em uso. Para testes Python de integração, use um banco PostgreSQL de teste separado e novo, configure `DATABASE_URL` e `RUN_DB_TESTS=1`, aplique `alembic upgrade head` e execute `pytest` em `apps/api`.
 
+O CI executa o Playwright Chromium em um Compose isolado, com credenciais de teste geradas durante o job, migrações e papéis de banco provisionados antes da abertura da interface. O gate é definido em `.github/workflows/ci.yml` e especificado em [`specs/testing/browser-ci-v1.md`](../specs/testing/browser-ci-v1.md).
+
 Antes de qualquer migração futura que remova FKs entre identidade e negócios, execute a reconciliação somente de leitura com a imagem da API atualizada:
 
 ```powershell

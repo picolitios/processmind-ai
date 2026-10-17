@@ -60,6 +60,53 @@ jobs:
         working-directory: apps/web
       - run: npm run build
         working-directory: apps/web
+  browser-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      COMPOSE_PROJECT_NAME: processmind_browser_ci
+      APP_ENV: local
+      WEB_ORIGIN: http://localhost:5173
+      E2E_BASE_URL: http://localhost:5173
+      OLLAMA_BASE_URL: http://127.0.0.1:1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Create isolated test credentials
+        run: |
+          echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)" >> "$GITHUB_ENV"
+          echo "IDENTITY_DB_PASSWORD=$(openssl rand -hex 24)" >> "$GITHUB_ENV"
+          echo "BUSINESS_DB_PASSWORD=$(openssl rand -hex 24)" >> "$GITHUB_ENV"
+          echo "AUTH_HASH_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+          echo "RABBITMQ_PASSWORD=$(openssl rand -hex 24)" >> "$GITHUB_ENV"
+      - name: Start database and broker
+        run: docker compose up -d --wait db rabbitmq
+      - name: Build application images
+        run: docker compose build db-admin api identity identity-config-reconciler worker model-worker audit-publisher audit-consumer audit-monitor web
+      - name: Migrate and provision scoped roles
+        run: |
+          docker compose run --rm --no-deps db-admin alembic upgrade head
+          docker compose run --rm --no-deps db-admin python -m app.db.provision_roles
+      - name: Start application
+        run: docker compose up -d --no-build --wait --wait-timeout 180 api identity identity-config-reconciler worker model-worker audit-publisher audit-consumer audit-monitor web
+      - name: Install browser test dependencies
+        working-directory: apps/web
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Run browser E2E
+        working-directory: apps/web
+        run: npm run test:e2e
+      - name: Show Compose status on failure
+        if: failure()
+        run: docker compose ps --all
+      - name: Stop disposable stack
+        if: always()
+        run: docker compose down
   broker-recovery:
     runs-on: ubuntu-latest
     services:

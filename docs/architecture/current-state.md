@@ -14,7 +14,7 @@ The V2 copilot is integrated with normal and temporary chats, organization memor
 - One database, migration role and shared Python image still couple identity and business operations. This is schema and runtime-credential isolation, not independent database infrastructure.
 - The worker's one-hour lease and three attempts give recovery for many failures, but a crash during processing can delay retry until lease expiry.
 - The API readiness check verifies PostgreSQL only. The audit monitor provides a local Compose health signal, not external paging or retained time-series metrics.
-- API, web and real RabbitMQ recovery tests run in CI; browser E2E still requires explicit local execution.
+- API, web, real RabbitMQ recovery and browser E2E tests run in CI. Browser E2E is also available for explicit local execution.
 - `specs/decisions/0001-modular-monolith.md` correctly records the MVP decision. The new architecture request is an evolution, not a retroactive replacement.
 
 ## Reuse
