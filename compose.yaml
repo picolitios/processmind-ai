@@ -183,6 +183,30 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+  audit-monitor:
+    build: ./apps/api
+    command: ["python", "-m", "app.features.audit.monitor"]
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+psycopg://processmind_business:${BUSINESS_DB_PASSWORD:?Set BUSINESS_DB_PASSWORD in .env}@db:5432/${POSTGRES_DB:-processmind}
+      RABBITMQ_MANAGEMENT_URL: http://rabbitmq:15672
+      RABBITMQ_USER: ${RABBITMQ_USER:-processmind}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-change-me-local}
+      AUDIT_MONITOR_INTERVAL_SECONDS: ${AUDIT_MONITOR_INTERVAL_SECONDS:-60}
+      AUDIT_MONITOR_MAX_PENDING_AGE_SECONDS: ${AUDIT_MONITOR_MAX_PENDING_AGE_SECONDS:-300}
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      audit-publisher:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-m", "app.features.audit.monitor", "check"]
+      interval: 60s
+      timeout: 5s
+      retries: 2
+      start_period: 90s
 volumes:
   postgres_data:
   upload_data:

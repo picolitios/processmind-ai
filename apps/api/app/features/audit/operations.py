@@ -46,6 +46,9 @@ def database_metrics(db: Session, now: datetime) -> dict[str, Any]:
             Job.type == "audit", Job.status == "running", Job.lease_until < now
         )
     )
+    oldest_queued = db.scalar(
+        select(func.min(Job.created_at)).where(Job.type == "audit", Job.status == "queued")
+    )
     return {
         "outbox": {
             "pending": pending_count,
@@ -63,6 +66,9 @@ def database_metrics(db: Session, now: datetime) -> dict[str, Any]:
         "audit_jobs": {
             "by_status": {status: count for status, count in job_rows},
             "expired_running_leases": expired_leases,
+            "oldest_queued_age_seconds": max(0.0, (now - oldest_queued).total_seconds())
+            if oldest_queued is not None
+            else None,
         },
     }
 
@@ -96,11 +102,27 @@ def threshold_failures(
     age = snapshot["outbox"]["oldest_pending_age_seconds"]
     if max_pending_age_seconds is not None and age is not None and age > max_pending_age_seconds:
         failures.append("outbox_pending_age")
+    queued_age = snapshot["audit_jobs"]["oldest_queued_age_seconds"]
+    if (
+        max_pending_age_seconds is not None
+        and queued_age is not None
+        and queued_age > max_pending_age_seconds
+    ):
+        failures.append("audit_queued_age")
     if fail_on_expired_leases and snapshot["audit_jobs"]["expired_running_leases"] > 0:
         failures.append("audit_expired_lease")
     if fail_on_dead_letter and sum(snapshot["queues"][DEAD].values()) > 0:
         failures.append("audit_dead_letter")
     return failures
+
+
+def collect_snapshot() -> dict[str, Any]:
+    """Collect one read-only observation for CLI or local Compose monitoring."""
+    now = datetime.now(UTC)
+    with Session(make_engine()) as db:
+        snapshot = {"observed_at": now.isoformat(), **database_metrics(db, now)}
+    snapshot["queues"] = queue_metrics()
+    return snapshot
 
 
 def main() -> int:
@@ -113,10 +135,7 @@ def main() -> int:
     if args.max_pending_age_seconds is not None and args.max_pending_age_seconds < 0:
         parser.error("--max-pending-age-seconds must be nonnegative")
     try:
-        now = datetime.now(UTC)
-        with Session(make_engine()) as db:
-            snapshot = {"observed_at": now.isoformat(), **database_metrics(db, now)}
-        snapshot["queues"] = queue_metrics()
+        snapshot = collect_snapshot()
         failures = threshold_failures(
             snapshot, args.max_pending_age_seconds,
             args.fail_on_expired_leases, args.fail_on_dead_letter,

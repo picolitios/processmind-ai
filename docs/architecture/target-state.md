@@ -24,6 +24,8 @@ flowchart LR
   PUB --> MQ[(RabbitMQ)]
   MQ --> CON[Audit consumer]
   CON --> PG
+  MON[Audit monitor] --> PG
+  MON -->|Queue counters| MQ
   IMPORT[Import worker] --> PG
   MODEL[Model worker] --> OLL[Optional local Ollama]
   MODEL --> PG
@@ -56,6 +58,7 @@ C4Container
   Container(consumer, "Audit consumer", "Python", "Idempotent audit processing")
   Container(importworker, "Import worker", "Python", "Import database jobs")
   Container(modelworker, "Model worker", "Python", "Explanation and copilot database jobs")
+  Container(monitor, "Audit monitor", "Python", "Aggregate dispatch health")
   ContainerDb(db, "PostgreSQL", "PostgreSQL 16", "Tenant data, jobs, outbox")
   ContainerQueue(broker, "RabbitMQ", "RabbitMQ 4", "Durable audit queue and retries")
   Rel(reviewer, web, "Uses")
@@ -70,6 +73,8 @@ C4Container
   Rel(consumer, db, "Claims job, writes findings")
   Rel(importworker, db, "Claims import jobs")
   Rel(modelworker, db, "Claims explanation and copilot jobs")
+  Rel(monitor, db, "Reads aggregate outbox and audit-job state")
+  Rel(monitor, broker, "Reads queue counters")
 ```
 
 ```mermaid

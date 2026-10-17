@@ -10,8 +10,9 @@ the public API, event envelope, queue topology, or audit rules.
    business schema and queue depth from the RabbitMQ management API. It emits
    one JSON object with a UTC observation time, pending outbox count and oldest
    age, publication latency for events published during the previous 24 hours,
-   audit-job counts by state and expired running leases, and ready/unacknowledged
-   message counts for the main, retry and dead-letter queues.
+   audit-job counts by state, oldest queued age and expired running leases,
+   and ready/unacknowledged message counts for the main, retry and dead-letter
+   queues.
 2. Publication latency is `published_at - created_at`, measured only for rows
    with both timestamps. Report count, mean and p95 in seconds; report null
    latencies when no rows qualify. Queue depth is a snapshot, not throughput.
@@ -19,8 +20,9 @@ the public API, event envelope, queue topology, or audit rules.
    prompt in output. It is an operator-only command, not an HTTP route.
 4. RabbitMQ/API or database failure produces a nonzero exit status. Optional
    thresholds fail the command when the oldest pending event exceeds the
-   configured age, any audit lease is expired, or the dead-letter queue is
-   nonempty. A threshold failure never modifies data.
+   configured age, the oldest queued audit job exceeds that same age, any
+   audit lease is expired, or the dead-letter queue is nonempty. A threshold
+   failure never modifies data.
 5. The audit domain owns the outbox and queue topology. Published outbox rows
    and dead letters are retained without automatic deletion in v1. Operators
    investigate dead letters before replay or removal. A later bounded purge

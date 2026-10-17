@@ -28,10 +28,10 @@ Copy-Item .env.example .env
 # Set distinct random IDENTITY_DB_PASSWORD and BUSINESS_DB_PASSWORD values (32+ characters).
 # Set a random AUTH_HASH_KEY of at least 32 characters.
 docker compose up -d db rabbitmq
-docker compose build db-admin api identity identity-config-reconciler worker model-worker audit-publisher audit-consumer web
+docker compose build db-admin api identity identity-config-reconciler worker model-worker audit-publisher audit-consumer audit-monitor web
 docker compose run --rm --no-deps db-admin alembic upgrade head
 docker compose run --rm --no-deps db-admin python -m app.db.provision_roles
-docker compose up -d --no-build api identity identity-config-reconciler worker model-worker audit-publisher audit-consumer web
+docker compose up -d --no-build api identity identity-config-reconciler worker model-worker audit-publisher audit-consumer audit-monitor web
 docker compose ps
 ```
 
@@ -47,5 +47,7 @@ Run `ruff check .`, `mypy app`, migrations and `pytest` from `apps/api` with a f
 The [MVP stabilization results](specs/testing/phase7-results.md), [load report](specs/testing/phase7-load-report.md), [audit evaluation](specs/testing/audit-evaluation.md) and [delivery evidence](specs/testing/phase8-delivery.md) contain measured results and limitations. No distributed-load benchmark is claimed for the broker path yet.
 
 For an aggregate audit-dispatch snapshot, run `docker compose run --rm --no-deps audit-publisher python -m app.features.audit.operations --max-pending-age-seconds 300 --fail-on-expired-leases --fail-on-dead-letter`. The read-only command returns JSON and exits with code 2 when a selected threshold is exceeded; see the [operations contract](specs/architecture/audit-operations-v1.md). It does not expose tenant data or event payloads.
+
+Compose runs `audit-monitor` every 60 seconds and marks that container unhealthy when the outbox or an audit job has waited over five minutes, an audit lease has expired, a dead letter exists, or a dependency is unavailable. Check `docker compose ps audit-monitor` and `docker compose logs audit-monitor`; the [monitor contract](specs/architecture/audit-monitor-v1.md) defines the signal and its limits.
 
 The [OpenAPI contract](specs/architecture/openapi.yaml), [event catalog](docs/architecture/event-catalog.md), [data model](specs/architecture/data-model.md), [security model](specs/security/security-model.md) and [ADRs](specs/decisions/) document established behavior. Audit requests use `202 Accepted`, idempotency keys and tenant-scoped result reads. API readiness currently verifies PostgreSQL; Compose checks broker health. Automatic outbox cleanup, a physically separate identity database and distributed tracing remain migration work.

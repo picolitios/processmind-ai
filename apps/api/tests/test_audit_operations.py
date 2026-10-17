@@ -31,14 +31,15 @@ def test_queue_snapshot_is_aggregate_and_does_not_expose_credentials(
 def test_thresholds_only_report_configured_conditions() -> None:
     snapshot = {
         "outbox": {"oldest_pending_age_seconds": 61.0},
-        "audit_jobs": {"expired_running_leases": 1},
+        "audit_jobs": {"expired_running_leases": 1, "oldest_queued_age_seconds": 62.0},
         "queues": {DEAD: {"ready": 1, "unacknowledged": 0}},
     }
     assert operations.threshold_failures(snapshot, None, False, False) == []
     assert operations.threshold_failures(snapshot, 60, True, True) == [
-        "outbox_pending_age", "audit_expired_lease", "audit_dead_letter"
+        "outbox_pending_age", "audit_queued_age", "audit_expired_lease", "audit_dead_letter"
     ]
     snapshot["outbox"]["oldest_pending_age_seconds"] = None
+    snapshot["audit_jobs"]["oldest_queued_age_seconds"] = None
     assert operations.threshold_failures(snapshot, 60, False, False) == []
 
 
@@ -71,7 +72,7 @@ def test_empty_database_metrics_are_explicit(monkeypatch: pytest.MonkeyPatch) ->
         Mock(one=lambda: (0, None, None)),
         Mock(all=lambda: []),
     ]
-    db.scalar.return_value = 0
+    db.scalar.side_effect = [0, None]
     metrics = operations.database_metrics(db, now)
     assert metrics["outbox"] == {
         "pending": 0,
@@ -80,4 +81,7 @@ def test_empty_database_metrics_are_explicit(monkeypatch: pytest.MonkeyPatch) ->
         "publish_latency_mean_seconds": None,
         "publish_latency_p95_seconds": None,
     }
-    assert metrics["audit_jobs"] == {"by_status": {}, "expired_running_leases": 0}
+    assert metrics["audit_jobs"] == {
+        "by_status": {}, "expired_running_leases": 0,
+        "oldest_queued_age_seconds": None,
+    }

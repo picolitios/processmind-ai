@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     ollama_model: str = "gemma3:4b"
     ollama_timeout_seconds: int = Field(default=30, ge=1, le=120)
     audit_dispatch_mode: str = "database"
+    audit_monitor_interval_seconds: int = Field(default=60, ge=10, le=3600)
+    audit_monitor_max_pending_age_seconds: int = Field(default=300, ge=0, le=604800)
     worker_job_group: str = "auto"
     audit_config_mode: str = "legacy"
     audit_config_write_mode: str = "database"
