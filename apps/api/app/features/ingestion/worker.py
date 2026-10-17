@@ -25,12 +25,19 @@ from app.features.ingestion.routes import storage_path
 logger = logging.getLogger(__name__)
 
 
+def allowed_job_types() -> tuple[str, ...]:
+    """Keep import and model queues disjoint in Compose while preserving local rollback."""
+    if settings.worker_job_group == "import":
+        return ("import",)
+    if settings.worker_job_group == "model":
+        return ("ai", "copilot")
+    if settings.audit_dispatch_mode == "broker":
+        return ("import", "ai", "copilot")
+    return ("import", "audit", "ai", "copilot")
+
+
 def claim_job(db: Session) -> uuid.UUID | None:
-    types = (
-        ["import", "ai", "copilot"]
-        if settings.audit_dispatch_mode == "broker"
-        else ["import", "audit", "ai", "copilot"]
-    )
+    types = allowed_job_types()
     exhausted = db.scalar(
         select(Job)
         .where(
@@ -256,7 +263,8 @@ def mark_target_failed(db: Session, job: Job) -> None:
 
 def run_once() -> bool:
     with Session(make_engine()) as db:
-        purge_expired_temporary(db)
+        if "copilot" in allowed_job_types():
+            purge_expired_temporary(db)
         job_id = claim_job(db)
         if job_id is None:
             return False

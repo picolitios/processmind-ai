@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     ollama_model: str = "gemma3:4b"
     ollama_timeout_seconds: int = Field(default=30, ge=1, le=120)
     audit_dispatch_mode: str = "database"
+    worker_job_group: str = "auto"
     audit_config_mode: str = "legacy"
     audit_config_write_mode: str = "database"
     audit_internal_url: str = "http://127.0.0.1:8000"
@@ -31,6 +32,8 @@ class Settings(BaseSettings):
     def validate_production(self) -> "Settings":
         if self.audit_dispatch_mode not in {"database", "broker"}:
             raise ValueError("AUDIT_DISPATCH_MODE must be database or broker")
+        if self.worker_job_group not in {"auto", "all", "import", "model"}:
+            raise ValueError("WORKER_JOB_GROUP must be auto, all, import or model")
         if self.audit_config_mode not in {"legacy", "owned"}:
             raise ValueError("AUDIT_CONFIG_MODE must be legacy or owned")
         if self.audit_config_write_mode not in {"database", "coordinated"}:

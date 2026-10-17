@@ -18,10 +18,10 @@ Edite `.env` antes de iniciar os serviços. Defina `POSTGRES_PASSWORD` com uma s
 
 ```powershell
 docker compose up -d db rabbitmq
-docker compose build db-admin api identity identity-config-reconciler worker audit-publisher audit-consumer web
+docker compose build db-admin api identity identity-config-reconciler worker model-worker audit-publisher audit-consumer web
 docker compose run --rm --no-deps db-admin alembic upgrade head
 docker compose run --rm --no-deps db-admin python -m app.db.provision_roles
-docker compose up -d --no-build api identity identity-config-reconciler worker audit-publisher audit-consumer web
+docker compose up -d --no-build api identity identity-config-reconciler worker model-worker audit-publisher audit-consumer web
 docker compose ps
 ```
 
@@ -38,11 +38,11 @@ Se o banco ainda estiver inicializando, espere o healthcheck e repita somente o 
 Para **atualizar uma instalação existente**, termine primeiro os jobs de auditoria antigos em modo `database`. Execute os gates de reconciliação descritos abaixo com a credencial administrativa e exija resultados limpos e `pending=blocked=0`. Anote as contagens das tabelas relevantes. Construa as imagens, pare todos os escritores e aplique a migração transacional com `db-admin`. Este serviço está no perfil `tools` e não inicia com `docker compose up` normal:
 
 ```powershell
-docker compose build db-admin api identity identity-config-reconciler worker audit-publisher audit-consumer web
+docker compose build db-admin api identity identity-config-reconciler worker model-worker audit-publisher audit-consumer web
 docker compose run --rm --no-deps db-admin python -m app.db.reconcile_identity
 docker compose run --rm --no-deps db-admin python -m app.db.reconcile_business_events
 docker compose run --rm --no-deps db-admin python -m app.features.identity.config_sync report
-docker compose stop web api identity identity-config-reconciler worker audit-consumer audit-publisher
+docker compose stop web api identity identity-config-reconciler worker model-worker audit-consumer audit-publisher
 docker compose run --rm --no-deps db-admin alembic upgrade head
 docker compose run --rm --no-deps db-admin python -m app.db.provision_roles
 docker compose run --rm --no-deps db-admin python -m app.db.reconcile_identity
@@ -89,7 +89,7 @@ Se precisar voltar à imagem anterior depois de operar em `owned`, pare API, wor
 Após a verificação, recrie os serviços:
 
 ```powershell
-docker compose up -d --no-build rabbitmq api identity identity-config-reconciler worker audit-publisher audit-consumer web
+docker compose up -d --no-build rabbitmq api identity identity-config-reconciler worker model-worker audit-publisher audit-consumer web
 ```
 
 O nginx resolve novamente o endereço da API após a recriação do contêiner.
@@ -98,7 +98,7 @@ O nginx envia `/api/v1/auth/*` e as rotas de organização, configurações e me
 
 Para desfazer o corte, pare todos os serviços Python, use a credencial administrativa de `db-admin` e execute `docker compose run --rm --no-deps db-admin alembic downgrade 6fd3a81b29c4`. A migração devolve as tabelas a `public` sem apagar linhas. Antes de iniciar uma imagem antiga, restaure suas variáveis de modo e credencial administrativa e cumpra os gates de cópias legadas acima. Os papéis globais permanecem no cluster porque outro banco pode usá-los, mas perdem acesso aos schemas deste banco.
 
-Auditorias novas usam a outbox e RabbitMQ em Compose. `http://localhost:15672` mostra o broker local. A API persiste o pedido mesmo quando o broker estiver indisponível; o publicador retoma a entrega quando a conexão voltar. O worker antigo continua importação e IA. Antes de ativar o modo `broker` em uma instalação antiga, conclua as auditorias ainda enfileiradas em modo `database` (veja `docs/architecture/migration-plan.md`).
+Auditorias novas usam a outbox e RabbitMQ em Compose. `http://localhost:15672` mostra o broker local. A API persiste o pedido mesmo quando o broker estiver indisponível; o publicador retoma a entrega quando a conexão voltar. `worker` executa importações; `model-worker` executa explicações e copiloto, inclusive a limpeza de chats temporários. Ambos usam a mesma tabela de jobs e banco de negócios. Antes de ativar o modo `broker` em uma instalação antiga, conclua as auditorias ainda enfileiradas em modo `database` (veja `docs/architecture/migration-plan.md`).
 
 ## Parar e retomar
 
@@ -106,7 +106,7 @@ Auditorias novas usam a outbox e RabbitMQ em Compose. `http://localhost:15672` m
 
 ## IA opcional
 
-A importação, auditoria, casos e indicadores funcionam sem Ollama. Para habilitar explicações, instale e inicie Ollama no host e disponibilize o modelo definido em `OLLAMA_MODEL` no `.env`. O worker usa `OLLAMA_BASE_URL` para acessá-lo. Quando indisponível, a interface informa a limitação; as regras determinísticas continuam funcionando.
+A importação, auditoria, casos e indicadores funcionam sem Ollama. Para habilitar explicações e respostas do copiloto, instale e inicie Ollama no host e disponibilize o modelo definido em `OLLAMA_MODEL` no `.env`. `model-worker` usa `OLLAMA_BASE_URL` para acessá-lo. Quando indisponível, a interface informa a limitação; as regras determinísticas continuam funcionando.
 
 ## Validação automatizada
 
