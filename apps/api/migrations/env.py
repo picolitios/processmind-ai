@@ -10,6 +10,7 @@ from app.features.audit import models as audit_models  # noqa: F401
 from app.features.audit import outbox as audit_outbox  # noqa: F401
 from app.features.audit_trail import models as audit_trail_models  # noqa: F401
 from app.features.cases import models as case_models  # noqa: F401
+from app.features.copilot import models as copilot_models  # noqa: F401
 from app.features.identity import models  # noqa: F401
 from app.features.ingestion import models as ingestion_models  # noqa: F401
 

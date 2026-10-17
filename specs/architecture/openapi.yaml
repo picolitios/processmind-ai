@@ -14,6 +14,7 @@ tags:
   - name: cases
   - name: analytics
   - name: ai
+  - name: copilot
   - name: health
 security:
   - sessionCookie: []
@@ -307,6 +308,91 @@ paths:
       summary: Estado e explicação validada
       responses:
         '200': { description: Análise, content: { application/json: { schema: { $ref: '#/components/schemas/AIAnalysis' } } } }
+  /organizations/{organization_id}/ai/copilot/policy:
+    get:
+      tags: [copilot]
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' } ]
+      summary: Consultar modo padrão e limite de memória
+      responses:
+        '200': { description: Política, content: { application/json: { schema: { $ref: '#/components/schemas/CopilotPolicy' } } } }
+    put:
+      tags: [copilot]
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/Csrf' } ]
+      summary: Configurar modo e memória (Owner/Admin)
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CopilotPolicy' } } } }
+      responses:
+        '200': { description: Política atualizada, content: { application/json: { schema: { $ref: '#/components/schemas/CopilotPolicy' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /organizations/{organization_id}/ai/copilot/conversations:
+    get:
+      tags: [copilot]
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/CopilotTargetQuery' }, { $ref: '#/components/parameters/CopilotAuditQuery' }, { $ref: '#/components/parameters/CopilotLimit' }, { $ref: '#/components/parameters/Cursor' } ]
+      summary: Listar apenas chats normais do autor para um alvo
+      responses:
+        '200': { description: Página, content: { application/json: { schema: { $ref: '#/components/schemas/CopilotConversationPage' } } } }
+    post:
+      tags: [copilot]
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/Csrf' } ]
+      summary: Criar chat normal ou temporário para um alvo concluído
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CopilotConversationInput' } } } }
+      responses:
+        '201': { description: Chat criado, content: { application/json: { schema: { $ref: '#/components/schemas/CopilotConversation' } } } }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /organizations/{organization_id}/ai/copilot/approvals:
+    get:
+      tags: [copilot]
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/CopilotLimit' } ]
+      summary: Listar pedidos pendentes (Owner/Admin)
+      responses:
+        '200': { description: Pedidos pendentes, content: { application/json: { schema: { $ref: '#/components/schemas/CopilotApprovalPage' } } } }
+  /organizations/{organization_id}/ai/copilot/conversations/{conversation_id}:
+    get:
+      tags: [copilot]
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/ConversationId' }, { $ref: '#/components/parameters/CopilotLimit' }, { $ref: '#/components/parameters/Cursor' } ]
+      summary: Consultar chat do autor e página de turnos
+      responses:
+        '200': { description: Chat e turnos, content: { application/json: { schema: { $ref: '#/components/schemas/CopilotConversationDetail' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [copilot]
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/ConversationId' }, { $ref: '#/components/parameters/Csrf' } ]
+      summary: Excluir chat próprio e seus turnos
+      responses:
+        '204': { description: Chat excluído }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /organizations/{organization_id}/ai/copilot/conversations/{conversation_id}/approve:
+    post:
+      tags: [copilot]
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/ConversationId' }, { $ref: '#/components/parameters/Csrf' } ]
+      summary: Aprovar pedido de chat normal (Owner/Admin)
+      responses:
+        '200': { description: Chat ativo, content: { application/json: { schema: { $ref: '#/components/schemas/CopilotConversation' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /organizations/{organization_id}/ai/copilot/conversations/{conversation_id}/reject:
+    post:
+      tags: [copilot]
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/ConversationId' }, { $ref: '#/components/parameters/Csrf' } ]
+      summary: Rejeitar pedido de chat normal (Owner/Admin)
+      responses:
+        '200': { description: Chat rejeitado, content: { application/json: { schema: { $ref: '#/components/schemas/CopilotConversation' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /organizations/{organization_id}/ai/copilot/conversations/{conversation_id}/questions:
+    post:
+      tags: [copilot]
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/ConversationId' }, { $ref: '#/components/parameters/Csrf' }, { $ref: '#/components/parameters/IdempotencyKey' } ]
+      summary: Enfileirar uma pergunta no chat ativo
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CopilotQuestionInput' } } } }
+      responses:
+        '202': { description: Pergunta aceita, content: { application/json: { schema: { $ref: '#/components/schemas/CopilotQuestionJob' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /organizations/{organization_id}/ai/copilot/questions/{question_id}:
+    get:
+      tags: [copilot]
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/QuestionId' } ]
+      summary: Consultar estado e resposta da própria pergunta
+      responses:
+        '200': { description: Turno, content: { application/json: { schema: { $ref: '#/components/schemas/CopilotTurn' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
   /health/live:
     get:
       tags: [health]
@@ -331,6 +417,11 @@ components:
     ImportId: { name: import_id, in: path, required: true, schema: { type: string, format: uuid } }
     AuditId: { name: audit_id, in: path, required: true, schema: { type: string, format: uuid } }
     FindingId: { name: finding_id, in: path, required: true, schema: { type: string, format: uuid } }
+    ConversationId: { name: conversation_id, in: path, required: true, schema: { type: string, format: uuid } }
+    QuestionId: { name: question_id, in: path, required: true, schema: { type: string, format: uuid } }
+    CopilotTargetQuery: { name: finding_id, in: query, schema: { type: string, format: uuid }, description: Informe exatamente um entre finding_id e audit_id }
+    CopilotAuditQuery: { name: audit_id, in: query, schema: { type: string, format: uuid } }
+    CopilotLimit: { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 50, default: 20 } }
     CaseId: { name: case_id, in: path, required: true, schema: { type: string, format: uuid } }
     Csrf: { name: X-CSRF-Token, in: header, required: true, schema: { type: string } }
     IdempotencyKey: { name: Idempotency-Key, in: header, required: true, schema: { type: string, minLength: 8, maxLength: 128 } }
@@ -387,6 +478,16 @@ components:
     Overview: { type: object, required: [imports, analyzed_records, audits, findings_by_severity, pending_cases, resolved_cases, trend, suppliers, categories], properties: { imports: { type: integer }, analyzed_records: { type: integer }, audits: { type: integer }, findings_by_severity: { type: object, additionalProperties: { type: integer } }, pending_cases: { type: integer }, resolved_cases: { type: integer }, dismissed_cases: { type: integer }, trend: { type: array, items: { type: object, additionalProperties: true } }, suppliers: { type: array, items: { type: object, additionalProperties: true } }, products: { type: array, items: { type: object, additionalProperties: true } }, categories: { type: array, items: { type: object, additionalProperties: true } }, limitations: { type: array, items: { type: string } } } }
     AIInput: { oneOf: [ { type: object, required: [finding_id], additionalProperties: false, properties: { finding_id: { type: string, format: uuid } } }, { type: object, required: [audit_id], additionalProperties: false, properties: { audit_id: { type: string, format: uuid } } } ] }
     AIAnalysis: { type: object, required: [id, status], properties: { id: { type: string, format: uuid }, status: { type: string, enum: [queued, running, succeeded, failed] }, summary: { type: [string, 'null'] }, possible_causes: { type: array, items: { type: string } }, suggested_checks: { type: array, items: { type: string } }, corrective_actions: { type: array, items: { type: string } }, evidence_ids: { type: array, items: { type: string, format: uuid } }, limitation: { type: [string, 'null'] } } }
+    CopilotPolicy: { type: object, required: [temporary_default, memory_turn_limit], additionalProperties: false, properties: { temporary_default: { type: boolean }, memory_turn_limit: { type: integer, minimum: 0, maximum: 20 } } }
+    CopilotConversationInput: { type: object, required: [mode], oneOf: [ { required: [finding_id] }, { required: [audit_id] } ], additionalProperties: false, properties: { finding_id: { type: string, format: uuid }, audit_id: { type: string, format: uuid }, mode: { type: string, enum: [normal, temporary] } } }
+    CopilotConversation: { type: object, required: [id, mode, status, created_at], properties: { id: { type: string, format: uuid }, finding_id: { type: [string, 'null'], format: uuid }, audit_id: { type: [string, 'null'], format: uuid }, mode: { type: string, enum: [normal, temporary] }, status: { type: string, enum: [active, pending, rejected] }, created_at: { type: string, format: date-time }, expires_at: { type: [string, 'null'], format: date-time } } }
+    CopilotConversationPage: { type: object, required: [items, next_cursor], properties: { items: { type: array, items: { $ref: '#/components/schemas/CopilotConversation' } }, next_cursor: { type: [string, 'null'] } } }
+    CopilotApprovalPage: { type: object, required: [items], properties: { items: { type: array, items: { type: object, properties: { id: { type: string, format: uuid }, author_id: { type: string, format: uuid }, finding_id: { type: [string, 'null'], format: uuid }, audit_id: { type: [string, 'null'], format: uuid }, mode: { type: string }, status: { type: string }, created_at: { type: string, format: date-time } } } } } }
+    CopilotQuestionInput: { type: object, required: [question], additionalProperties: false, properties: { question: { type: string, minLength: 1, maxLength: 1000 } } }
+    CopilotQuestionJob: { type: object, required: [question_id, job_id, status], properties: { question_id: { type: string, format: uuid }, job_id: { type: string, format: uuid }, status: { type: string, enum: [queued, running, succeeded, failed] } } }
+    CopilotCitation: { type: object, required: [evidence_id, finding_id, audit_id], properties: { evidence_id: { type: string, format: uuid }, finding_id: { type: string, format: uuid }, audit_id: { type: string, format: uuid } } }
+    CopilotTurn: { type: object, required: [id, conversation_id, status, question, citations, created_at], properties: { id: { type: string, format: uuid }, conversation_id: { type: string, format: uuid }, status: { type: string, enum: [queued, running, succeeded, failed] }, question: { type: string }, answer: { type: [string, 'null'] }, citations: { type: array, items: { $ref: '#/components/schemas/CopilotCitation' } }, limitation: { type: [string, 'null'] }, created_at: { type: string, format: date-time } } }
+    CopilotConversationDetail: { type: object, required: [conversation, turns, next_cursor], properties: { conversation: { $ref: '#/components/schemas/CopilotConversation' }, turns: { type: array, items: { $ref: '#/components/schemas/CopilotTurn' } }, next_cursor: { type: [string, 'null'] } } }
     Health: { type: object, required: [status], properties: { status: { type: string, enum: [ok, unavailable] } } }
     ImportPage: { type: object, required: [items, next_cursor], properties: { items: { type: array, items: { $ref: '#/components/schemas/ImportBatch' } }, next_cursor: { type: [string, 'null'] } } }
     RowPage: { type: object, required: [items, next_cursor], properties: { items: { type: array, items: { $ref: '#/components/schemas/ImportRow' } }, next_cursor: { type: [string, 'null'] } } }
