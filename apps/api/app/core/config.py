@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     audit_internal_url: str = "http://127.0.0.1:8000"
     business_event_write_mode: str = "dual"
     rabbitmq_host: str = "127.0.0.1"
+    rabbitmq_management_url: str = "http://127.0.0.1:15672"
     rabbitmq_user: str = "guest"
     rabbitmq_password: str = "guest"
     business_auth_mode: str = "database"

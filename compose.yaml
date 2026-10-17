@@ -142,6 +142,7 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://processmind_business:${BUSINESS_DB_PASSWORD:?Set BUSINESS_DB_PASSWORD in .env}@db:5432/${POSTGRES_DB:-processmind}
       RABBITMQ_HOST: rabbitmq
+      RABBITMQ_MANAGEMENT_URL: http://rabbitmq:15672
       RABBITMQ_USER: ${RABBITMQ_USER:-processmind}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-change-me-local}
       AUTH_HASH_KEY: ${AUTH_HASH_KEY:-local-only-replace-before-production}

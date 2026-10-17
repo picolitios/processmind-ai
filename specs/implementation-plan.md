@@ -7,9 +7,9 @@ Os primeiros recortes da Fase 2 estão em `specs/architecture/identity-boundary-
 
 A primeira entrega funcional da V2 é o copiloto conversacional definido em `specs/architecture/copilot-v2.md`. Backend, contrato, interface, guia e E2E dos modos normal e temporário compõem a mesma entrega; o modelo local precisa estar disponível para gerar respostas em vez da limitação explícita.
 
-`specs/architecture/import-dedup-lock-v1.md` remove o bloqueio de deduplicação de importações da linha de organização sem alterar a semântica de concorrência. O snapshot de configuração da auditoria e as FKs entre domínios permanecem pendentes de migração.
+`specs/architecture/import-dedup-lock-v1.md` removeu o bloqueio de deduplicação de importações da linha de organização sem alterar a semântica de concorrência. O snapshot de configuração da auditoria e as FKs entre domínios foram migrados nos incrementos posteriores descritos abaixo.
 
-`specs/architecture/audit-configuration-ownership-v1.md` define o primeiro incremento da migração do snapshot: tabela própria, backfill e leitura controlada com rollback. A gravação cruzada transitória e as FKs ainda impedem a declaração de isolamento de credenciais.
+`specs/architecture/audit-configuration-ownership-v1.md` definiu o primeiro incremento da migração do snapshot: tabela própria, backfill e leitura controlada com rollback. A gravação cruzada transitória e as FKs foram tratadas nos incrementos seguintes, permitindo o isolamento de credenciais no Compose.
 
 `specs/architecture/audit-configuration-coordination-v1.md` define o corte da gravação direta da identidade, com comando durável, aplicação privada idempotente, reconciliação e resposta pública síncrona após confirmação.
 
@@ -55,15 +55,16 @@ Objetivo: entregar primeiro a especificação coerente e depois uma fundação e
 ## Estado
 
 - Fase 0: concluída após revisão de contrato, cobertura de requisitos, dependências e limites de escopo.
-- Fase 1: concluída após Compose com PostgreSQL saudável, migração `0001_foundation`, liveness/readiness, web HTTP 200, testes, lint, tipos, build e auditoria npm. A CI correspondente está configurada; sua execução remota depende de um repositório Git remoto.
-- Fase 2: concluída na API com cadastro, login, sessão, logout, CSRF, organizações, membros, RBAC, throttle e testes de dois tenants. A interface dessas operações pertence à Fase 6. Testes locais com PostgreSQL e fluxo HTTP via Compose passaram; CI remota segue pendente de remoto Git.
+- Fase 1: concluída após Compose com PostgreSQL saudável, migração `0001_foundation`, liveness/readiness, web HTTP 200, testes, lint, tipos, build e auditoria npm. O projeto agora possui remoto Git e CI no GitHub Actions.
+- Fase 2: concluída na API com cadastro, login, sessão, logout, CSRF, organizações, membros, RBAC, throttle e testes de dois tenants. A interface dessas operações pertence à Fase 6. Testes locais com PostgreSQL e fluxo HTTP via Compose passaram; a CI remota está ativa.
 - Fase 3: concluída na API com CSV/XLSX, prévia, mapeamento, limite de upload, hash/reimportação explícita, job persistido, linhas normalizadas com erros, compras por tenant e gerador sintético reproduzível nos quatro tamanhos. Testes PostgreSQL de fluxo e corpus adversarial passaram. A interface visual pertence à Fase 6; as regras de auditoria começam na Fase 4.
 - Fase 4: concluída na API e no worker com nove regras v1.0.0, estatística conservadora, execuções idempotentes, catálogo versionado, achados e evidências por tenant. Gabarito sintético corrigido e avaliado em 100/1k/10k/50k linhas; teste PostgreSQL cobre criação, isolamento, RBAC e consulta. Revisão humana e casos pertencem à Fase 6.
 - Fase 5: concluída na API e no worker com análises opcionais via Ollama, schema estrito, citação validada de evidências, limites de contexto, circuito de falhas e fallback explícito. Testes cobrem resposta válida, referência inventada, injeção em dados, indisponibilidade, idempotência, RBAC e isolamento; a auditoria segue independente da IA. A interface visual pertence à Fase 6.
 - Fase 6: concluída. API de revisão, casos, comentários paginados e indicadores validada com PostgreSQL; onze telas pt-BR conectadas à API, com sessão/CSRF, RBAC, estados de carregamento/erro/vazio, mapeamento, auditoria, explicação opcional, decisões e comentários. Fluxo E2E cadastro → organização → importação → auditoria → achado → caso → atribuição → comentário → resolução → indicador passou em Compose. Lint, tipos, build, Vitest e 17 testes Python passaram; os testes Python foram repetidos em banco novo para evitar jobs obsoletos de execuções anteriores.
 - Fase 7: estabilização concluída em branch própria. Headers, cache, acessibilidade, ingestão de 50 mil linhas, concorrência e auditoria de dependências validados. Resultados e limites em `specs/testing/phase7-results.md` e `specs/testing/phase7-load-report.md`; CI remota e revisão do PR seguem o fluxo de integração.
-- Fase 8: instalação isolada com novos volumes, migração e E2E completos; guias, CSV de exemplo, capturas, OpenAPI e backlog futuro disponíveis. O relatório de aceite consta em `specs/testing/phase8-delivery.md`. PRs empilhados aguardam revisão e integração.
+- Fase 8: instalação isolada com novos volumes, migração e E2E completos; guias, CSV de exemplo, capturas, OpenAPI e backlog futuro disponíveis. O relatório de aceite consta em `specs/testing/phase8-delivery.md`. Os PRs do MVP foram integrados à `main`.
 - Versão 2, copiloto conversacional: política e aprovação por organização, chats normais/temporários, memória delimitada por tenant, citações verificadas e worker implementados. Painéis de achado/auditoria, configurações, guia e E2E dos dois modos foram acrescentados no PR da entrega. A disponibilidade efetiva de respostas depende do Ollama configurado; o fallback foi validado sem alterar auditorias ou casos.
+- Evolução distribuída, operação da auditoria: `specs/architecture/audit-operations-v1.md` define o diagnóstico agregado e somente de leitura da outbox, filas RabbitMQ e jobs de auditoria, com limiares opcionais. A retenção v1 preserva eventos publicados e dead letters até existir política de expurgo comprovada por volume e restauração.
 
 ## Plano de execução da Fase 6
 

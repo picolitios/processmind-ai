@@ -4,7 +4,7 @@ Este backlog registra possibilidades das versões seguintes do prompt mestre. Ne
 
 ## Versão 2
 
-- Copiloto conversacional e consultas em linguagem natural.
+- Copiloto conversacional e consultas em linguagem natural (entregue na V2; ver `specs/architecture/copilot-v2.md`).
 - Integrações ERP, webhooks e n8n.
 - Notificações e relatórios exportáveis.
 - Regras personalizadas e aprovação de ações corretivas.

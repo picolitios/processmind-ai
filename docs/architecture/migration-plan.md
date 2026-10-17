@@ -11,31 +11,31 @@ Acceptance: creating an audit through the existing REST API commits the audit ru
 
 ## Subsequent increments
 
-1. Stabilize contract and recovery tests; add queue depth, publish latency and worker metrics. Define ownership and retention for outbox and dead letters.
+1. Stabilize contract and recovery tests; add queue depth, publish latency and worker metrics. The read-only diagnostics and v1 no-deletion retention policy are specified in `specs/architecture/audit-operations-v1.md`. Automated collection and a measured purge policy remain later work.
 2. Put identity routes behind a dedicated process and gateway rule while preserving the shared transaction model. Test tenant authorization and rollback. Then replace direct business-module identity table reads with explicit contracts and migrate FKs/credentials/schema before declaring exclusive data ownership.
 3. Extract audit/ingestion and AI on demonstrated scaling or security needs. Replace cross-domain table reads with versioned APIs/events and test authorization and reconciliation.
 4. Add notification and analytics consumers only when product requirements call for them. Extend CI with contract, browser, recovery and load evidence, then document deployment.
 
-The V2 conversational copilot design remains on `feature/v2-copilot` until this vertical is stable. Its history and access-policy decisions do not alter the first event contract.
+The V2 conversational copilot is integrated on `main`. Its history and access-policy decisions do not alter the first event contract.
 
 ## Identity data cutover dependencies
 
-The dedicated identity process is live, but exclusive database ownership is blocked by concrete references that must be migrated in order:
+The dedicated identity process and separate runtime schema credentials are live in Compose. The table dependencies below were migrated in order; rollback modes still require the administrative credential and reconciliation gates:
 
-| Business dependency | Current use | Required contract or data change |
+| Business dependency | Current use | Cutover and rollback note |
 | --- | --- | --- |
 | `UserSession` and `User` | Business API previously validated the session cookie directly | Signed, bounded identity introspection with fail-closed behavior and revocation tests now handles business routes in Compose; direct identity routes remain for compatibility |
-| `Organization` and `Membership` | Identity authorizes tenant membership and resolves case references through private contracts; audit reads an audit-owned configuration row in Compose without locking the organization row | The direct identity write uses a durable command and signed audit-owner apply call; the FK cutover requires reference reconciliation and a no-delete policy before isolated credentials |
-| `AuditEvent` | Business modules own an append-only trail; Compose now omits the temporary legacy write, while `dual` mode remains for rollback | Verify the copies before cutover and restore missing legacy IDs before reverting to an older image; retire the shared-database rollback path before credential isolation |
-| FKs to users, organizations and memberships | Business tables retain historical UUIDs; public writes validate session, tenant and member references through identity | The reversible FK cutover preserves business-to-business constraints and temporarily blocks physical identity deletion; verify reconciliation before separate schemas and roles |
+| `Organization` and `Membership` | Identity authorizes tenant membership and resolves case references through private contracts; audit reads an audit-owned configuration row in Compose without locking the organization row | A durable command and signed audit-owner apply call coordinate settings; reference reconciliation and a physical-delete guard preceded isolated credentials |
+| `AuditEvent` | Business modules own an append-only trail; Compose omits the temporary legacy write, while `dual` mode remains for rollback | Verify the copies and restore missing legacy IDs before reverting to an older image |
+| FKs to users, organizations and memberships | Business tables retain historical UUIDs; public writes validate session, tenant and member references through identity | Cross-domain FKs were removed reversibly; business-to-business constraints and the physical-delete guard remain |
 
-Do not remove the compatibility identity routes in the business API or revoke table access until these contracts and a reversible data migration pass two-tenant regression, revocation, E2E and failure tests. Audit configuration writes are coordinated across processes in Compose, with a temporary shared-transaction mode for rollback. The business event trail supports owned-only writes in Compose, but rollback restoration still needs shared-database access.
+Compatibility identity routes remain in the business API for direct clients. Audit configuration writes are coordinated across processes in Compose, with a temporary shared-transaction mode for rollback. The business event trail uses owned-only writes in Compose, but rollback restoration still needs shared-database access.
 
-The [identity data cutover plan](identity-data-cutover-plan.md) inventories the remaining table dependencies, sequence and release gates. ADR 0003 records audit ownership and the temporary shared lock.
+The [identity data cutover plan](identity-data-cutover-plan.md) records the completed sequence and release gates. ADR 0003 records audit ownership and the former shared lock.
 
 Audit configuration rollout: apply the additive migrations first. Before enabling `AUDIT_CONFIG_MODE=owned` and `AUDIT_CONFIG_WRITE_MODE=coordinated`, compare organization and audit-configuration counts, versions and values. Recreate API and identity only after the copy is verified. Coordinated writes require owned snapshot reads. For a shared-database rollback, drain all configuration commands, verify the copies again, and select `AUDIT_CONFIG_WRITE_MODE=database` together with `AUDIT_CONFIG_MODE=legacy`; retain both tables and their synchronized data.
 
-Identity rollback: remove the identity gateway locations, set `BUSINESS_AUTH_MODE=database` on the API, and recreate API/web before stopping identity. The shared schema and sessions require no data migration.
+Identity rollback: the former shared-schema image requires the documented schema downgrade, administrative credential and data reconciliation. Then remove the identity gateway locations, set `BUSINESS_AUTH_MODE=database` on the API, and recreate API/web before stopping identity. Follow `docs/installation.md`; do not switch modes against the current isolated roles.
 
 Rollback: stop publisher/consumer, set `AUDIT_DISPATCH_MODE=database` on API and polling worker, and retain the additive outbox table. Do not drop records or revert schema with live data.
 Before switching from database to broker mode in an existing installation, drain queued audit jobs with the database worker or enqueue their events through a reviewed one-time migration; otherwise they have no outbox record for the broker publisher.
