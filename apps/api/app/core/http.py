@@ -1,5 +1,6 @@
 import uuid
 from collections.abc import Awaitable, Callable
+from time import perf_counter
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.exceptions import RequestValidationError
@@ -16,6 +17,7 @@ from app.core.errors import (
     unexpected_error_handler,
     validation_error_handler,
 )
+from app.core.observability import log_request
 from app.db.engine import make_engine
 
 
@@ -41,13 +43,27 @@ def configure_http(app: FastAPI, service_name: str | None = None) -> None:
         request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
         request.state.correlation_id = str(uuid.uuid4())
-        response = await call_next(request)
-        response.headers["X-Correlation-ID"] = request.state.correlation_id
-        if request.url.path.startswith("/api/v1/"):
-            response.headers["Cache-Control"] = "no-store"
-        if service_name:
-            response.headers["X-ProcessMind-Service"] = service_name
-        return response
+        started = perf_counter()
+        status_code = 500
+        try:
+            response = await call_next(request)
+            status_code = response.status_code
+            response.headers["X-Correlation-ID"] = request.state.correlation_id
+            if request.url.path.startswith("/api/v1/"):
+                response.headers["Cache-Control"] = "no-store"
+            if service_name:
+                response.headers["X-ProcessMind-Service"] = service_name
+            return response
+        finally:
+            route = request.scope.get("route")
+            log_request(
+                service_name or "business",
+                request.state.correlation_id,
+                request.method,
+                route.path if route is not None else "unmatched",
+                status_code,
+                (perf_counter() - started) * 1000,
+            )
 
     @app.get("/api/v1/health/live", response_model=Health)
     def live() -> Health:
