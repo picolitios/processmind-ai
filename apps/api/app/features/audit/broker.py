@@ -11,13 +11,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.observability import log_audit_event
 from app.db.engine import make_engine
 from app.features.audit.models import AuditRun
 from app.features.audit.outbox import OutboxEvent
 from app.features.audit.worker import process_audit_job
 from app.features.ingestion.models import Job
 
-logger = logging.getLogger(__name__)
 EXCHANGE = "processmind.events"
 ROUTING_KEY = "audit.requested.v1"
 QUEUE = "processmind.audit.requested.v1"
@@ -101,6 +101,13 @@ def publish_one() -> bool:
             publish(channel, json.dumps(item.envelope).encode(), str(item.id))
             item.published_at = datetime.now(UTC)
             db.commit()
+            log_audit_event(
+                "audit-publisher",
+                "audit_publish",
+                "published",
+                item.envelope.get("correlation_id"),
+                str(item.id),
+            )
         finally:
             connection.close()
     return True
@@ -113,8 +120,11 @@ def publisher_main() -> None:
         try:
             if not publish_one():
                 time.sleep(2)
-        except Exception:
-            logger.exception("Outbox publish failed")
+        except Exception as exc:
+            log_audit_event(
+                "audit-publisher", "audit_publish", "failed", None, None,
+                type(exc).__name__,
+            )
             time.sleep(5)
 
 
@@ -128,17 +138,28 @@ def validate_event(body: bytes) -> AuditRequested | None:
     return event
 
 
+def log_delivery(event: AuditRequested, outcome: str, error_type: str | None = None) -> None:
+    """Record a validated envelope's correlation without its tenant or payload."""
+    log_audit_event(
+        "audit-consumer",
+        "audit_delivery",
+        outcome,
+        str(event.correlation_id),
+        str(event.event_id),
+        error_type,
+    )
+
+
 def process_delivery(channel: Any, delivery_tag: int, body: bytes) -> None:
     event = validate_event(body)
     if event is None:
         publish(channel, body, str(uuid.uuid4()), DEAD)
         channel.basic_ack(delivery_tag=delivery_tag)
+        log_audit_event("audit-consumer", "audit_delivery", "invalid", None, None)
         return
     with Session(make_engine()) as db:
         job = db.scalar(
-            select(Job)
-            .where(Job.id == event.payload.job_id, Job.type == "audit")
-            .with_for_update()
+            select(Job).where(Job.id == event.payload.job_id, Job.type == "audit").with_for_update()
         )
         run = db.scalar(
             select(AuditRun).where(
@@ -155,21 +176,25 @@ def process_delivery(channel: Any, delivery_tag: int, body: bytes) -> None:
             db.rollback()
             publish(channel, body, str(event.event_id), DEAD)
             channel.basic_ack(delivery_tag=delivery_tag)
+            log_delivery(event, "rejected")
             return
         if job.status == "succeeded":
             db.rollback()
             channel.basic_ack(delivery_tag=delivery_tag)
+            log_delivery(event, "duplicate")
             return
         if job.status == "failed":
             db.rollback()
             publish(channel, body, str(event.event_id), DEAD)
             channel.basic_ack(delivery_tag=delivery_tag)
+            log_delivery(event, "already_failed")
             return
         now = datetime.now(UTC)
         if job.status == "running" and job.lease_until and job.lease_until > now:
             db.rollback()
             publish(channel, body, str(event.event_id), RETRY_5)
             channel.basic_ack(delivery_tag=delivery_tag)
+            log_delivery(event, "leased_retry")
             return
         if job.attempt_count >= 3:
             job.status = "failed"
@@ -181,6 +206,7 @@ def process_delivery(channel: Any, delivery_tag: int, body: bytes) -> None:
             db.commit()
             publish(channel, body, str(event.event_id), DEAD)
             channel.basic_ack(delivery_tag=delivery_tag)
+            log_delivery(event, "lease_exhausted")
             return
         job.status = "running"
         job.attempt_count += 1
@@ -190,8 +216,9 @@ def process_delivery(channel: Any, delivery_tag: int, body: bytes) -> None:
         db.commit()
         try:
             process_audit_job(db, job.id)
+            outcome = "succeeded"
+            error_type = None
         except Exception as exc:
-            logger.exception("Audit event processing failed: %s", type(exc).__name__)
             db.rollback()
             job = db.scalar(select(Job).where(Job.id == event.payload.job_id).with_for_update())
             run = db.scalar(select(AuditRun).where(AuditRun.id == event.payload.audit_id))
@@ -208,7 +235,10 @@ def process_delivery(channel: Any, delivery_tag: int, body: bytes) -> None:
             db.commit()
             retry = DEAD if job.status == "failed" else (RETRY_5 if attempt == 1 else RETRY_15)
             publish(channel, body, str(event.event_id), retry)
+            outcome = "failed" if job.status == "failed" else "retry"
+            error_type = type(exc).__name__
         channel.basic_ack(delivery_tag=delivery_tag)
+        log_delivery(event, outcome, error_type)
 
 
 def consumer_main() -> None:
@@ -226,8 +256,11 @@ def consumer_main() -> None:
                         process_delivery(channel, method.delivery_tag, body)
             finally:
                 connection.close()
-        except Exception:
-            logger.exception("Audit consumer connection failed")
+        except Exception as exc:
+            log_audit_event(
+                "audit-consumer", "audit_connection", "failed", None, None,
+                type(exc).__name__,
+            )
             time.sleep(5)
 
 

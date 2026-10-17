@@ -72,6 +72,7 @@ def test_audit_event_is_atomic_tenant_checked_and_idempotent(
                 "audit_id": created.json()["id"],
                 "job_id": created.json()["job_id"],
             }
+            assert event.envelope["correlation_id"] == created.headers["X-Correlation-ID"]
             metrics = database_metrics(db, datetime.now(UTC))
             assert metrics["outbox"]["pending"] >= 1
             assert metrics["audit_jobs"]["oldest_queued_age_seconds"] is not None
