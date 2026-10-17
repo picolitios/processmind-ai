@@ -4,9 +4,11 @@ import type { Audit, Finding, Page } from "../../lib/api";
 import { QueryState, useResource } from "../../lib/useResource";
 import type { ShellContext } from "../shell/Shell";
 import { Status } from "../imports/ImportsPage";
+import { CopilotPanel } from "../copilot/CopilotPanel";
+import { canWrite } from "../shell/Shell";
 
 export function AuditDetailPage() {
-  const { organizationId } = useOutletContext<ShellContext>();
+  const { organizationId, role } = useOutletContext<ShellContext>();
   const { auditId = "" } = useParams();
   const audit = useResource<Audit>(
     ["audit", auditId],
@@ -73,6 +75,13 @@ export function AuditDetailPage() {
           )
         )}
       </section>
+      {audit.data?.status === "succeeded" && canWrite(role) && (
+        <CopilotPanel
+          key={`audit:${auditId}`}
+          organizationId={organizationId}
+          auditId={auditId}
+        />
+      )}
     </>
   );
 }

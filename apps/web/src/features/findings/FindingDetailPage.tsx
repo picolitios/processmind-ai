@@ -7,6 +7,7 @@ import type { ShellContext } from "../shell/Shell";
 import { canWrite } from "../shell/Shell";
 import { Status } from "../imports/ImportsPage";
 import { AnalysisPanel } from "./AnalysisPanel";
+import { CopilotPanel } from "../copilot/CopilotPanel";
 
 export function FindingDetailPage() {
   const { organizationId, role } = useOutletContext<ShellContext>();
@@ -91,7 +92,7 @@ export function FindingDetailPage() {
             <h2>Evidências</h2>
             {detail.data.evidence.length ? (
               detail.data.evidence.map((item) => (
-                <div className="evidence" key={item.id}>
+                <div className="evidence" id={`evidence-${item.id}`} key={item.id}>
                   <strong>
                     {item.type === "purchase"
                       ? "Compra"
@@ -109,6 +110,13 @@ export function FindingDetailPage() {
             findingId={findingId}
             canRequest={canWrite(role)}
           />
+          {canWrite(role) && (
+            <CopilotPanel
+              key={`finding:${findingId}`}
+              organizationId={organizationId}
+              findingId={findingId}
+            />
+          )}
           {canWrite(role) &&
             !["resolved", "dismissed"].includes(detail.data.review_state) && (
               <section className="card">
