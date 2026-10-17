@@ -1,6 +1,7 @@
 import json
 import os
 import uuid
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -15,6 +16,7 @@ from app.db.engine import make_engine
 from app.features.audit import broker
 from app.features.audit.broker import DEAD, RETRY_5, process_delivery, validate_event
 from app.features.audit.models import AuditFinding
+from app.features.audit.operations import database_metrics
 from app.features.audit.outbox import OutboxEvent
 from app.features.ingestion.worker import run_once
 from app.main import app
@@ -70,6 +72,9 @@ def test_audit_event_is_atomic_tenant_checked_and_idempotent(
                 "audit_id": created.json()["id"],
                 "job_id": created.json()["job_id"],
             }
+            metrics = database_metrics(db, datetime.now(UTC))
+            assert metrics["outbox"]["pending"] >= 1
+            assert metrics["audit_jobs"]["oldest_queued_age_seconds"] is not None
             body = json.dumps(event.envelope).encode()
 
         def unavailable() -> None:
