@@ -6,7 +6,7 @@ ProcessMind AI is a local-first B2B purchase audit platform. Teams import CSV/XL
 
 - React/Vite UI, a dedicated identity FastAPI process for client-facing auth/organization routes, and a business FastAPI process. Organization membership, RBAC, session cookies and CSRF behavior remain compatible with the MVP.
 - PostgreSQL 16 with Alembic migrations, tenant-scoped purchases, audit runs, findings, cases and action trail.
-- Separate import/AI worker and audit event path. An audit request commits a job and outbox event together; a publisher confirms delivery to RabbitMQ, and a consumer commits findings before acknowledging. The API exposes status and results.
+- Separate import and local-model worker processes plus an audit event path. An audit request commits a job and outbox event together; a publisher confirms delivery to RabbitMQ, and a consumer commits findings before acknowledging. The API exposes status and results.
 - Optional local Ollama explanations with validation and explicit fallback. Audit rules work without a model.
 - Conversational copilot for findings and audits, with tenant-scoped shared memory, temporary chats, approval policy and evidence citations. Model answers require optional local Ollama.
 
@@ -28,10 +28,10 @@ Copy-Item .env.example .env
 # Set distinct random IDENTITY_DB_PASSWORD and BUSINESS_DB_PASSWORD values (32+ characters).
 # Set a random AUTH_HASH_KEY of at least 32 characters.
 docker compose up -d db rabbitmq
-docker compose build db-admin api identity identity-config-reconciler worker audit-publisher audit-consumer web
+docker compose build db-admin api identity identity-config-reconciler worker model-worker audit-publisher audit-consumer web
 docker compose run --rm --no-deps db-admin alembic upgrade head
 docker compose run --rm --no-deps db-admin python -m app.db.provision_roles
-docker compose up -d --no-build api identity identity-config-reconciler worker audit-publisher audit-consumer web
+docker compose up -d --no-build api identity identity-config-reconciler worker model-worker audit-publisher audit-consumer web
 docker compose ps
 ```
 

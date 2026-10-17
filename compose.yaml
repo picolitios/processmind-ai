@@ -125,13 +125,27 @@ services:
       DATABASE_URL: postgresql+psycopg://processmind_business:${BUSINESS_DB_PASSWORD:?Set BUSINESS_DB_PASSWORD in .env}@db:5432/${POSTGRES_DB:-processmind}
       UPLOAD_DIR: /data/uploads
       AUTH_HASH_KEY: ${AUTH_HASH_KEY:-local-only-replace-before-production}
+      AUDIT_DISPATCH_MODE: broker
+      WORKER_JOB_GROUP: import
+      BUSINESS_EVENT_WRITE_MODE: ${BUSINESS_EVENT_WRITE_MODE:-owned}
+    volumes:
+      - upload_data:/data/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+  model-worker:
+    build: ./apps/api
+    command: ["python", "-m", "app.features.ingestion.worker"]
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+psycopg://processmind_business:${BUSINESS_DB_PASSWORD:?Set BUSINESS_DB_PASSWORD in .env}@db:5432/${POSTGRES_DB:-processmind}
+      AUTH_HASH_KEY: ${AUTH_HASH_KEY:-local-only-replace-before-production}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma3:4b}
       OLLAMA_TIMEOUT_SECONDS: ${OLLAMA_TIMEOUT_SECONDS:-30}
       AUDIT_DISPATCH_MODE: broker
+      WORKER_JOB_GROUP: model
       BUSINESS_EVENT_WRITE_MODE: ${BUSINESS_EVENT_WRITE_MODE:-owned}
-    volumes:
-      - upload_data:/data/uploads
     depends_on:
       db:
         condition: service_healthy

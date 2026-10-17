@@ -7,7 +7,7 @@ The target is a set of **logical boundaries**, extracted into independently depl
 | Client edge | nginx + FastAPI middleware | Consolidated gateway when routing across independently deployed APIs is needed |
 | Identity | dedicated process and `identity` schema with a scoped runtime credential | Physically separate identity database if operations justify it |
 | Import and audit | `features/ingestion`, `features/audit` | Audit service; owns purchases, audit runs, findings and event outbox |
-| AI explanation | `features/ai` | AI analysis service after independent scaling/security need |
+| AI explanation and copilot | dedicated model worker process, `features/ai` and `features/copilot`, shared business schema | AI analysis service with owned data and versioned evidence contracts after independent scaling/security need |
 | Notification | None | Worker only after a real notification use case exists |
 | Analytics | `features/analytics` | Worker/materialized projections only if query load warrants it |
 
@@ -24,14 +24,16 @@ flowchart LR
   PUB --> MQ[(RabbitMQ)]
   MQ --> CON[Audit consumer]
   CON --> PG
-  WORKER[Import / AI worker] --> OLL[Optional local Ollama]
+  IMPORT[Import worker] --> PG
+  MODEL[Model worker] --> OLL[Optional local Ollama]
+  MODEL --> PG
 ```
 
 The broker uses durable queues, persistent messages, publisher confirms, manual consumer acknowledgment, retry with delay, and a dead-letter queue. A committed outbox record is the source for publication; delivery is **at least once**. The audit job remains the idempotency and status record, so duplicate messages cannot produce duplicate findings. `tenant_id` is checked against the job and run before processing. Public HTTP routes and authorization remain unchanged.
 
 See `event-catalog.md` for the first real event and `migration-plan.md` for sequencing.
 
-## C4 views of the first increment
+## C4 views of the current distributed deployment
 
 ```mermaid
 C4Context
@@ -45,14 +47,15 @@ C4Context
 
 ```mermaid
 C4Container
-  title Containers in the first distributed increment
+  title Containers in the current distributed deployment
   Person(reviewer, "Company reviewer")
   Container(web, "Web/nginx", "React, nginx", "UI and API proxy")
   Container(api, "API", "FastAPI", "Import, audit, cases, analytics; compatibility identity routes")
   Container(identity, "Identity", "FastAPI", "Public auth and organization routes")
   Container(publisher, "Outbox publisher", "Python", "Confirmed audit event publication")
   Container(consumer, "Audit consumer", "Python", "Idempotent audit processing")
-  Container(worker, "Import/AI worker", "Python", "Existing database jobs")
+  Container(importworker, "Import worker", "Python", "Import database jobs")
+  Container(modelworker, "Model worker", "Python", "Explanation and copilot database jobs")
   ContainerDb(db, "PostgreSQL", "PostgreSQL 16", "Tenant data, jobs, outbox")
   ContainerQueue(broker, "RabbitMQ", "RabbitMQ 4", "Durable audit queue and retries")
   Rel(reviewer, web, "Uses")
@@ -65,7 +68,8 @@ C4Container
   Rel(publisher, broker, "Publishes with confirm")
   Rel(broker, consumer, "Delivers audit.requested.v1")
   Rel(consumer, db, "Claims job, writes findings")
-  Rel(worker, db, "Claims import and AI jobs")
+  Rel(importworker, db, "Claims import jobs")
+  Rel(modelworker, db, "Claims explanation and copilot jobs")
 ```
 
 ```mermaid
