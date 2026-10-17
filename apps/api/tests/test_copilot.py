@@ -173,7 +173,24 @@ def test_copilot_memory_is_tenant_scoped_and_temporary_isolated(
         assert invalid_answer.json()["citations"] == []
 
         other_csrf = login(outsider, create_user(outsider, "copilot-outsider"))
-        create_org(outsider, other_csrf, "copilot-other")
+        other_org = create_org(outsider, other_csrf, "copilot-other")
+        other_user_id = outsider.get("/api/v1/auth/session").json()["user"]["id"]
+        _, other_findings, other_evidence = seed_targets(other_org, other_user_id)
+        other_base = f"/api/v1/organizations/{other_org}/ai"
+        other_chat = create_chat(outsider, other_base, other_csrf, other_findings[0], "normal")
+        other_question = ask(outsider, other_base, other_csrf, other_chat["id"], "Outro tenant?")
+        finish_question(monkeypatch, other_question, other_evidence[0])
+
+        third = create_chat(owner, base, csrf, findings[1], "normal")
+        third_question = ask(owner, base, csrf, third["id"], "Que memória posso usar?")
+        with Session(make_engine()) as db:
+            conversation = db.get(CopilotConversation, uuid.UUID(third["id"]))
+            turn = db.get(CopilotTurn, uuid.UUID(third_question["question_id"]))
+            assert conversation is not None and turn is not None
+            context, allowed, _ = build_copilot_context(db, conversation, turn)
+        assert uuid.UUID(other_evidence[0]) not in allowed
+        assert all(entry["question"] != "Outro tenant?" for entry in context["organization_memory"])
+        finish_question(monkeypatch, third_question, evidence[1])
         outsider_question = outsider.get(
             f"{base}/copilot/questions/{first_question['question_id']}"
         )
@@ -232,6 +249,20 @@ def test_policy_approval_idempotency_and_expiry(monkeypatch: pytest.MonkeyPatch)
         ).status_code == 403
         finish_question(monkeypatch, first.json(), evidence[0])
 
+        rejected = create_chat(analyst, base, analyst_csrf, findings[0], "normal")
+        decision_path = f"{base}/copilot/conversations/{rejected['id']}"
+        assert owner.post(
+            f"{decision_path}/reject", headers=csrf_headers(owner_csrf)
+        ).status_code == 200
+        assert owner.post(
+            f"{decision_path}/reject", headers=csrf_headers(owner_csrf)
+        ).status_code == 200
+        assert owner.post(
+            f"{decision_path}/approve", headers=csrf_headers(owner_csrf)
+        ).status_code == 409
+        listed = analyst.get(f"{base}/copilot/conversations", params={"finding_id": findings[0]})
+        assert rejected["id"] not in [item["id"] for item in listed.json()["items"]]
+
         temporary = create_chat(analyst, base, analyst_csrf, findings[0], "temporary")
         with Session(make_engine()) as db:
             chat = db.get(CopilotConversation, uuid.UUID(temporary["id"]))
@@ -240,3 +271,69 @@ def test_policy_approval_idempotency_and_expiry(monkeypatch: pytest.MonkeyPatch)
             db.commit()
             assert purge_expired_temporary(db) == 1
         assert analyst.get(f"{base}/copilot/conversations/{temporary['id']}").status_code == 404
+
+
+def test_copilot_rejects_invalid_input_and_revoked_membership() -> None:
+    with TestClient(app) as owner, TestClient(app) as analyst, TestClient(app) as viewer:
+        owner_csrf = login(owner, create_user(owner, "copilot-auth-owner"))
+        analyst_email = create_user(analyst, "copilot-auth-analyst")
+        analyst_csrf = login(analyst, analyst_email)
+        viewer_email = create_user(viewer, "copilot-auth-viewer")
+        viewer_csrf = login(viewer, viewer_email)
+        org_id = create_org(owner, owner_csrf, "copilot-auth")
+        owner_id = owner.get("/api/v1/auth/session").json()["user"]["id"]
+        _, findings, _ = seed_targets(org_id, owner_id)
+        base = f"/api/v1/organizations/{org_id}/ai/copilot"
+        members = f"/api/v1/organizations/{org_id}/users"
+        analyst_member = owner.post(
+            members, headers=csrf_headers(owner_csrf),
+            json={"email": analyst_email, "role": "analyst"},
+        ).json()
+        owner.post(
+            members, headers=csrf_headers(owner_csrf),
+            json={"email": viewer_email, "role": "viewer"},
+        )
+        assert viewer.get(f"{base}/policy").status_code == 200
+        assert viewer.post(
+            f"{base}/conversations", headers=csrf_headers(viewer_csrf),
+            json={"finding_id": findings[0], "mode": "normal"},
+        ).status_code == 403
+        assert analyst.post(
+            f"{base}/conversations",
+            json={"finding_id": findings[0], "mode": "normal"},
+        ).status_code == 403
+        assert analyst.post(
+            f"{base}/conversations", headers=csrf_headers(analyst_csrf, "https://evil.example"),
+            json={"finding_id": findings[0], "mode": "normal"},
+        ).status_code == 403
+        assert analyst.post(
+            f"{base}/conversations", headers=csrf_headers(analyst_csrf),
+            json={"finding_id": findings[0], "audit_id": str(uuid.uuid4()), "mode": "normal"},
+        ).status_code == 422
+        assert analyst.post(
+            f"{base}/conversations", headers=csrf_headers(analyst_csrf),
+            json={"finding_id": str(uuid.uuid4()), "mode": "temporary"},
+        ).status_code == 422
+        chat = create_chat(analyst, f"/api/v1/organizations/{org_id}/ai", analyst_csrf,
+                           findings[0], "normal")
+        changed = owner.patch(
+            f"{members}/{analyst_member['user_id']}", headers=csrf_headers(owner_csrf),
+            json={"status": "inactive"},
+        )
+        assert changed.status_code == 200
+        assert analyst.get(f"{base}/conversations/{chat['id']}").status_code == 401
+        login(analyst, analyst_email)
+        assert analyst.get(f"{base}/conversations/{chat['id']}").status_code == 404
+
+
+def test_copilot_result_rejects_unverified_references_and_links() -> None:
+    allowed = uuid.uuid4()
+    unknown = uuid.uuid4()
+    with pytest.raises(ValueError):
+        CopilotResult(answer="Evidência não fornecida", evidence_ids=[unknown]).validate_evidence(
+            {allowed}
+        )
+    with pytest.raises(ValueError):
+        CopilotResult(
+            answer="Veja https://example.com", evidence_ids=[allowed]
+        ).validate_evidence({allowed})
