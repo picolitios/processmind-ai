@@ -13,6 +13,17 @@ Comece pela [instalação local](installation.md). O exemplo [`compras-exemplo.c
 
 O detalhe do caso mostra atribuição, comentários e histórico. A opção de explicação por IA no achado é complementar e exige Ollama configurado; uma falha de IA não altera o resultado da auditoria.
 
+## Copiloto conversacional (Versão 2)
+
+Nos detalhes de um **achado** ou de uma **auditoria concluída**, Owner, Admin e Analyst podem abrir um chat pelo painel **Copiloto conversacional**. Escolha o tipo antes de selecionar **Novo chat**:
+
+- **Normal:** perguntas e respostas ficam no histórico da organização. Abra um item em **Meus chats salvos** para continuar após recarregar a página. Outros usuários não leem sua transcrição, mas turnos de chats normais ativos da mesma organização podem compor a memória compartilhada do copiloto. Excluir o chat remove seus turnos dessa memória.
+- **Temporário:** usa as evidências do alvo e as perguntas anteriores do próprio chat. Não usa outros chats nem entra na memória compartilhada. O painel não o restaura após recarregar; a transcrição transitória expira após uma hora sem atividade.
+
+Em **Configurações → Copiloto conversacional**, Owner/Admin podem definir o modo temporário como padrão e ajustar de 0 a 20 os turnos de outros chats usados como memória. Com o temporário como padrão, um Analyst que criar chat normal aguarda aprovação. Owner/Admin decidem os pedidos na mesma tela de configurações. O limite 0 desliga a memória entre chats; o histórico do chat atual continua disponível.
+
+Após enviar uma pergunta, aguarde o processamento. A resposta mostra links para as evidências usadas, inclusive achados de outras auditorias da mesma organização quando a memória normal os recuperar. Confira cada evidência antes de decidir. Se Ollama estiver indisponível ou não houver evidências suficientes, o painel explica a limitação e a auditoria determinística continua funcionando.
+
 ## Conjuntos sintéticos maiores
 
 Na raiz do repositório, com Python 3.12:

@@ -5,6 +5,8 @@
 Evolução arquitetural pós-MVP: `specs/architecture/audit-events-v1.md` define o primeiro fluxo executável. A sequência, limites e rollback estão em `docs/architecture/migration-plan.md`. As Fases 0–8 abaixo são o histórico do MVP; não representam os estágios da evolução distribuída.
 Os primeiros recortes da Fase 2 estão em `specs/architecture/identity-boundary-v1.md`, `specs/architecture/membership-boundary-v1.md` e `specs/architecture/case-membership-lookup-v1.md`: processo e roteamento de identidade separados, sessão/CSRF, autorização de associação e referências de membros em casos via contratos privados. O estado atual do Compose já separa schemas e credenciais de runtime, conforme `specs/architecture/identity-schema-credential-boundary-v1.md`; as descrições dos incrementos abaixo registram seu escopo histórico.
 
+A primeira entrega funcional da V2 é o copiloto conversacional definido em `specs/architecture/copilot-v2.md`. Backend, contrato, interface, guia e E2E dos modos normal e temporário compõem a mesma entrega; o modelo local precisa estar disponível para gerar respostas em vez da limitação explícita.
+
 `specs/architecture/import-dedup-lock-v1.md` remove o bloqueio de deduplicação de importações da linha de organização sem alterar a semântica de concorrência. O snapshot de configuração da auditoria e as FKs entre domínios permanecem pendentes de migração.
 
 `specs/architecture/audit-configuration-ownership-v1.md` define o primeiro incremento da migração do snapshot: tabela própria, backfill e leitura controlada com rollback. A gravação cruzada transitória e as FKs ainda impedem a declaração de isolamento de credenciais.
@@ -61,6 +63,7 @@ Objetivo: entregar primeiro a especificação coerente e depois uma fundação e
 - Fase 6: concluída. API de revisão, casos, comentários paginados e indicadores validada com PostgreSQL; onze telas pt-BR conectadas à API, com sessão/CSRF, RBAC, estados de carregamento/erro/vazio, mapeamento, auditoria, explicação opcional, decisões e comentários. Fluxo E2E cadastro → organização → importação → auditoria → achado → caso → atribuição → comentário → resolução → indicador passou em Compose. Lint, tipos, build, Vitest e 17 testes Python passaram; os testes Python foram repetidos em banco novo para evitar jobs obsoletos de execuções anteriores.
 - Fase 7: estabilização concluída em branch própria. Headers, cache, acessibilidade, ingestão de 50 mil linhas, concorrência e auditoria de dependências validados. Resultados e limites em `specs/testing/phase7-results.md` e `specs/testing/phase7-load-report.md`; CI remota e revisão do PR seguem o fluxo de integração.
 - Fase 8: instalação isolada com novos volumes, migração e E2E completos; guias, CSV de exemplo, capturas, OpenAPI e backlog futuro disponíveis. O relatório de aceite consta em `specs/testing/phase8-delivery.md`. PRs empilhados aguardam revisão e integração.
+- Versão 2, copiloto conversacional: política e aprovação por organização, chats normais/temporários, memória delimitada por tenant, citações verificadas e worker implementados. Painéis de achado/auditoria, configurações, guia e E2E dos dois modos foram acrescentados no PR da entrega. A disponibilidade efetiva de respostas depende do Ollama configurado; o fallback foi validado sem alterar auditorias ou casos.
 
 ## Plano de execução da Fase 6
 

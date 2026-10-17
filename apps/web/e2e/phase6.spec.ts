@@ -82,11 +82,40 @@ test("cadastro até resolução de um caso", async ({ page }) => {
     timeout: 60_000,
   });
   await assertAccessible(page);
+  const auditUrl = page.url();
+  const auditCopilot = page.getByRole("region", { name: "Copiloto conversacional" });
+  await auditCopilot.getByRole("button", { name: "Novo chat" }).click();
+  await expect(auditCopilot.getByRole("heading", { name: "Chat salvo" })).toBeVisible();
+  await auditCopilot.getByLabel("Sua pergunta").fill("Quais evidências devo conferir?");
+  await auditCopilot.getByRole("button", { name: "Enviar pergunta" }).click();
+  await expect(auditCopilot.getByText("Quais evidências devo conferir?")).toBeVisible();
+  const firstTurn = auditCopilot.locator(".copilot-turn").first();
+  await expect(firstTurn.getByText("Resposta em processamento…")).toHaveCount(0, {
+    timeout: 60_000,
+  });
+  await expect(firstTurn.locator("p").filter({
+    hasText: /Copiloto:|Ollama indisponível|Dados insuficientes|Resposta da IA inválida/,
+  })).toBeVisible();
+  await page.reload();
+  await expect(page).toHaveURL(auditUrl);
+  await auditCopilot.getByRole("button", { name: /Ativo/ }).click();
+  await expect(auditCopilot.getByText("Quais evidências devo conferir?")).toBeVisible();
+
   await page.getByRole("link", { name: "Alertas" }).click();
   await expect(page.getByRole("heading", { name: "Achados" })).toBeVisible();
   await assertAccessible(page);
   await page.getByRole("link", { name: /DUPLICATE/ }).click();
   await assertAccessible(page);
+  const findingCopilot = page.getByRole("region", { name: "Copiloto conversacional" });
+  await findingCopilot.getByLabel("Tipo de chat").selectOption("temporary");
+  await findingCopilot.getByRole("button", { name: "Novo chat" }).click();
+  await expect(findingCopilot.getByRole("heading", { name: "Chat temporário" })).toBeVisible();
+  await findingCopilot.getByLabel("Sua pergunta").fill("O que verificar neste achado?");
+  await findingCopilot.getByRole("button", { name: "Enviar pergunta" }).click();
+  await expect(findingCopilot.getByText("O que verificar neste achado?")).toBeVisible();
+  await page.reload();
+  await expect(findingCopilot.getByText("Nenhum chat salvo para este alvo.")).toBeVisible();
+  await expect(findingCopilot.getByRole("heading", { name: "Chat temporário" })).toHaveCount(0);
   await page.getByRole("button", { name: "Abrir caso" }).click();
   await expect(page.getByRole("heading", { name: /Caso/ })).toBeVisible();
   await assertAccessible(page);
@@ -129,4 +158,7 @@ test("cadastro até resolução de um caso", async ({ page }) => {
   await page.getByRole("link", { name: "Configurações" }).click();
   await expect(page.getByRole("heading", { name: "Configurações" })).toBeVisible();
   await assertAccessible(page);
+  await page.getByLabel("Iniciar chats no modo temporário por padrão").check();
+  await page.getByRole("button", { name: "Salvar política do copiloto" }).click();
+  await expect(page.getByText("Política do copiloto salva.")).toBeVisible();
 });

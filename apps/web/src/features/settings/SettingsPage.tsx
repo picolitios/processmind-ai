@@ -6,6 +6,7 @@ import type { Organization, Page, Role } from "../../lib/api";
 import { Feedback, QueryState, useResource } from "../../lib/useResource";
 import type { ShellContext } from "../shell/Shell";
 import { canAdmin, roleLabel } from "../shell/Shell";
+import { CopilotSettings } from "../copilot/CopilotSettings";
 
 type Member = {
   organization_id: string;
@@ -239,6 +240,7 @@ export function SettingsPage() {
           )}
         </section>
       </div>
+      {canAdmin(role) && <CopilotSettings organizationId={organizationId} />}
       <Feedback error={error} success={success} />
     </>
   );

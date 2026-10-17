@@ -16,6 +16,8 @@ from app.features.ai.worker import process_ai_job
 from app.features.audit.models import AuditRun
 from app.features.audit.worker import process_audit_job
 from app.features.audit_trail.events import append_business_event
+from app.features.copilot.models import CopilotTurn
+from app.features.copilot.worker import process_copilot_job, purge_expired_temporary
 from app.features.ingestion.models import ImportBatch, ImportRow, Job, Purchase, Supplier
 from app.features.ingestion.parsing import bounded_rows, normalize, table_rows
 from app.features.ingestion.routes import storage_path
@@ -25,9 +27,9 @@ logger = logging.getLogger(__name__)
 
 def claim_job(db: Session) -> uuid.UUID | None:
     types = (
-        ["import", "ai"]
+        ["import", "ai", "copilot"]
         if settings.audit_dispatch_mode == "broker"
-        else ["import", "audit", "ai"]
+        else ["import", "audit", "ai", "copilot"]
     )
     exhausted = db.scalar(
         select(Job)
@@ -242,10 +244,19 @@ def mark_target_failed(db: Session, job: Job) -> None:
         if analysis is not None:
             analysis.status = "failed"
             analysis.limitation = "Falha no processamento da IA. A auditoria permanece disponível."
+    elif job.type == "copilot":
+        turn = db.scalar(select(CopilotTurn).where(
+            CopilotTurn.id == uuid.UUID(job.payload_json["turn_id"]),
+            CopilotTurn.organization_id == job.organization_id,
+        ))
+        if turn is not None:
+            turn.status = "failed"
+            turn.limitation = "Falha no processamento do copiloto."
 
 
 def run_once() -> bool:
     with Session(make_engine()) as db:
+        purge_expired_temporary(db)
         job_id = claim_job(db)
         if job_id is None:
             return False
@@ -257,6 +268,8 @@ def run_once() -> bool:
                 process_audit_job(db, job_id)
             elif job.type == "ai":
                 process_ai_job(db, job_id)
+            elif job.type == "copilot":
+                process_copilot_job(db, job_id)
             else:
                 process_job(db, job_id)
         except Exception as exc:
@@ -297,6 +310,13 @@ def run_once() -> bool:
                     )
                     if analysis is not None:
                         analysis.status = "queued"
+                elif job.type == "copilot":
+                    turn = db.scalar(select(CopilotTurn).where(
+                        CopilotTurn.id == uuid.UUID(job.payload_json["turn_id"]),
+                        CopilotTurn.organization_id == job.organization_id,
+                    ))
+                    if turn is not None:
+                        turn.status = "queued"
                 db.commit()
     return True
 

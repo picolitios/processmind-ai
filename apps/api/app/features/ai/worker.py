@@ -6,7 +6,7 @@ import urllib.request
 import uuid
 from typing import Any
 
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -33,17 +33,20 @@ class OllamaUnavailable(Exception):
     pass
 
 
-def _call_ollama(context: dict[str, Any], model: str) -> tuple[AIResult, str]:
+def call_structured[ResultModel: BaseModel](
+    context: dict[str, Any], model: str, schema: type[ResultModel], system_message: str,
+) -> tuple[ResultModel, str]:
+    """Use one bounded Ollama transport and circuit for both AI features."""
     global _transport_failures, _circuit_open_until
     if time.monotonic() < _circuit_open_until:
         raise OllamaUnavailable("circuit_open")
     payload = {
         "model": model,
         "stream": False,
-        "format": AIResult.model_json_schema(),
+        "format": schema.model_json_schema(),
         "options": {"temperature": 0},
         "messages": [
-            {"role": "system", "content": SYSTEM_MESSAGE},
+            {"role": "system", "content": system_message},
             {
                 "role": "user",
                 "content": "<contexto_json>\n"
@@ -75,7 +78,12 @@ def _call_ollama(context: dict[str, Any], model: str) -> tuple[AIResult, str]:
     content = envelope["message"].get("content")
     if not isinstance(content, str):
         raise ValueError("missing_content")
-    return AIResult.model_validate_json(content), str(envelope.get("model", model))[:120]
+    return schema.model_validate_json(content), str(envelope.get("model", model))[:120]
+
+
+def _call_ollama(context: dict[str, Any], model: str) -> tuple[AIResult, str]:
+    """Preserve the existing explanation contract over the shared transport."""
+    return call_structured(context, model, AIResult, SYSTEM_MESSAGE)
 
 
 def process_ai_job(db: Session, job_id: uuid.UUID) -> None:
