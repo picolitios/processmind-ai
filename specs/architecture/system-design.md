@@ -37,7 +37,7 @@ Todos os recursos empresariais carregam `organization_id`; referências entre el
 
 ## Jobs e operação
 
-Tabela `jobs` com tipo, estado, payload validado, chave idempotente, tentativas, lease, timestamps e erro sanitizado. Workers usam `FOR UPDATE SKIP LOCKED` e retentativa limitada. Auditoria em broker usa confirmação de publicação, ACK após commit, filas de retry com atraso e dead letter. Nenhuma thread de requisição executa 50 mil linhas de modo síncrono. `/health/live` verifica processo; `/health/ready` verifica banco; o Compose monitora o broker separadamente. O ID de correlação segue no evento. Não registrar conteúdo de compras ou credenciais em logs.
+Tabela `jobs` com tipo, estado, payload validado, chave idempotente, tentativas, lease, timestamps e erro sanitizado. Workers usam `FOR UPDATE SKIP LOCKED` e retentativa limitada. Auditoria em broker usa confirmação de publicação, ACK após commit, filas de retry com atraso e dead letter. Nenhuma thread de requisição executa 50 mil linhas de modo síncrono. `/health/live` verifica processo; `/health/ready` verifica banco e, na API empresarial em modo distribuído, a identidade. O healthcheck web atravessa o nginx até essa rota. O Compose monitora o broker separadamente. O ID de correlação segue no evento. Não registrar conteúdo de compras ou credenciais em logs.
 
 ## Contratos
 

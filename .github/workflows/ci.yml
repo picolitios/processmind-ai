@@ -100,6 +100,21 @@ jobs:
             test -n "$container_id"
             test "$(docker inspect --format '{{.HostConfig.RestartPolicy.Name}}' "$container_id")" = "unless-stopped"
           done
+      - name: Verify identity-dependent readiness and recovery
+        run: |
+          docker compose stop identity
+          for attempt in $(seq 1 15); do
+            api_status=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/api/v1/health/ready || true)
+            web_status=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:5173/api/v1/health/ready || true)
+            test "$api_status" = 503 && test "$web_status" = 503 && break
+            sleep 1
+          done
+          test "$api_status" = 503
+          test "$web_status" = 503
+          docker compose start identity
+          docker compose up -d --no-build --wait --wait-timeout 90 identity api web
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/api/v1/health/ready)" = 200
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:5173/api/v1/health/ready)" = 200
       - name: Install browser test dependencies
         working-directory: apps/web
         run: |

@@ -118,7 +118,7 @@ services:
       identity:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/api/v1/health/ready"]
       interval: 10s
       timeout: 5s
       retries: 5
