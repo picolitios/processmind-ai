@@ -58,3 +58,5 @@ The browser CI job also runs [concurrent synthetic import and audit journeys](sp
 The [local measurement report](specs/testing/distributed-load-results.md) records the first complete distributed run and its limits.
 
 For local data protection, follow the [quiesced backup and isolated restore guide](docs/backup-and-restore.md). It covers PostgreSQL and private uploads and refuses a backup while application writers or audit dispatch remain active. No automated offsite retention or production recovery objective is established.
+
+The [local deployment guide](docs/deployment.md) defines an upgrade sequence and a read-only release gate. Run `python scripts/verify_deployment.py` after startup to check services, migration revision, runtime role isolation and audit dispatch. This Compose deployment is for local evaluation; production operations need additional controls listed in the guide.
