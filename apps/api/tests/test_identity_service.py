@@ -111,6 +111,28 @@ def test_signed_introspection_and_business_fail_closed(monkeypatch: pytest.Monke
         assert signed.status_code == 200, signed.text
         assert signed.json()["csrf_valid"] is True
 
+        correlation_id = uuid.uuid4()
+        correlated = identity.post(
+            path,
+            json=payload,
+            headers={
+                "X-Internal-Timestamp": timestamp,
+                "X-Internal-Correlation-ID": str(correlation_id),
+                "X-Internal-Signature": signature(timestamp, cookie, csrf, correlation_id),
+            },
+        )
+        assert correlated.status_code == 200, correlated.text
+        assert correlated.headers["X-Correlation-ID"] == str(correlation_id)
+        assert identity.post(
+            path,
+            json=payload,
+            headers={
+                "X-Internal-Timestamp": timestamp,
+                "X-Internal-Correlation-ID": str(uuid.uuid4()),
+                "X-Internal-Signature": signature(timestamp, cookie, csrf, correlation_id),
+            },
+        ).status_code == 403
+
         def local_introspection(token: str, csrf_token: str | None = None) -> IntrospectionResult:
             now = str(int(time.time()))
             result = identity.post(

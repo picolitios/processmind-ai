@@ -18,7 +18,7 @@ from app.core.errors import (
     unexpected_error_handler,
     validation_error_handler,
 )
-from app.core.observability import log_request
+from app.core.observability import current_correlation_id, log_request
 from app.db.engine import make_engine
 
 
@@ -60,6 +60,7 @@ def configure_http(app: FastAPI, service_name: str | None = None) -> None:
         request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
         request.state.correlation_id = str(uuid.uuid4())
+        context_token = current_correlation_id.set(request.state.correlation_id)
         started = perf_counter()
         status_code = 500
         try:
@@ -73,14 +74,17 @@ def configure_http(app: FastAPI, service_name: str | None = None) -> None:
             return response
         finally:
             route = request.scope.get("route")
-            log_request(
-                service_name or "business",
-                request.state.correlation_id,
-                request.method,
-                route.path if route is not None else "unmatched",
-                status_code,
-                (perf_counter() - started) * 1000,
-            )
+            try:
+                log_request(
+                    service_name or "business",
+                    request.state.correlation_id,
+                    request.method,
+                    route.path if route is not None else "unmatched",
+                    status_code,
+                    (perf_counter() - started) * 1000,
+                )
+            finally:
+                current_correlation_id.reset(context_token)
 
     @app.get("/api/v1/health/live", response_model=Health)
     def live() -> Health:
