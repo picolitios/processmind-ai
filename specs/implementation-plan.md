@@ -1,5 +1,12 @@
 # Plano, backlog e dependências
 
+## Demonstração externa
+
+`specs/architecture/oci-demo-deployment-v1.md` define a preparação do Compose
+para Oracle Always Free com limite R$ 0. O deploy externo permanece desativado
+até autorização específica e validação de VM/hostname/segredos; o guia
+`docs/demo-oracle-always-free.md` descreve bootstrap, atualização e rollback.
+
 ## Plano curto
 
 Evolução arquitetural pós-MVP: `specs/architecture/audit-events-v1.md` define o primeiro fluxo executável. A sequência, limites e rollback estão em `docs/architecture/migration-plan.md`. As Fases 0–8 abaixo são o histórico do MVP; não representam os estágios da evolução distribuída.
