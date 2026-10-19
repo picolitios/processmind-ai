@@ -31,6 +31,7 @@ business record. RabbitMQ is a dispatch mechanism, not the recovery source.
   output-directory safety.
 - An isolated Compose CI stack creates real data, exports both archives,
   restores the database into a new database, reprovisions runtime grants, and
-  compares counts. The upload archive is inspected, checksummed and extracted
-  in an isolated temporary directory.
+  compares counts. The upload archive is inspected, checksummed and restored
+  into a new Docker volume; every file and restored database reference is
+  verified as specified in `upload-volume-restore-proof-v1.md`.
 - No customer data, archive or credential is uploaded as a CI artifact.

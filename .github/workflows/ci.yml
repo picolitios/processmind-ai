@@ -157,11 +157,14 @@ jobs:
           source_counts=$(docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atqc "SELECT (SELECT count(*) FROM identity.users), (SELECT count(*) FROM business.import_batches), (SELECT count(*) FROM business.audit_runs), (SELECT count(*) FROM business.audit_findings)"')
           restored_counts=$(docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d processmind_restore_check -Atqc "SELECT (SELECT count(*) FROM identity.users), (SELECT count(*) FROM business.import_batches), (SELECT count(*) FROM business.audit_runs), (SELECT count(*) FROM business.audit_findings)"')
           test "$source_counts" = "$restored_counts"
-          restore_uploads=$(mktemp -d)
-          tar -xf backups/ci-proof/uploads.tar -C "$restore_uploads"
-          docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d processmind_restore_check -Atqc "SELECT private_storage_key FROM business.import_batches"' | while IFS= read -r key; do
-            test -f "$restore_uploads/$key"
-          done
+          docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d processmind_restore_check -Atqc "SELECT private_storage_key FROM business.import_batches"' > backups/ci-proof/restore-keys.txt
+          restore_volume="processmind-ci-uploads-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          docker volume create "$restore_volume"
+          trap 'docker volume rm "$restore_volume" >/dev/null' EXIT
+          docker run --rm -v "$restore_volume:/restore" -v "$PWD/backups/ci-proof:/backup:ro" postgres:16-alpine tar -xf /backup/uploads.tar -C /restore
+          api_image=$(docker compose images -q api)
+          test -n "$api_image"
+          docker run --rm -v "$restore_volume:/restore:ro" -v "$PWD/backups/ci-proof:/backup:ro" -v "$PWD/scripts:/verification:ro" --entrypoint python "$api_image" /verification/verify_restored_uploads.py /backup/uploads.tar /restore /backup/restore-keys.txt
           echo "Backup and isolated restore verified"
       - name: Save distributed load evidence
         if: always()

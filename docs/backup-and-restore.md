@@ -73,8 +73,9 @@ If the source stack runs on the same host, its bound ports conflict with this
 Compose file; use another host or an explicit isolated port configuration.
 
 The CI gate executes the database restore into a separate temporary database
-within a disposable Compose stack and compares record counts. It extracts the
-synthetic upload archive to a temporary directory and checks referenced files. RabbitMQ starts
+within a disposable Compose stack and compares record counts. It restores the
+synthetic upload archive into a new Docker volume, compares every file's bytes
+and set membership, and checks all import keys from the restored database. RabbitMQ starts
 empty on restore because the backup preflight required all audit queues empty.
 This procedure has no production RPO/RTO, automated schedule, or live restore
 guarantee; test an offsite copy and document recovery objectives before using
