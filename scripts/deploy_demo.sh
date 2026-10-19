@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Deploy a CI-verified main commit on the dedicated demo VM, preserving data.
 set -euo pipefail
+umask 077
 
 target="${1:-}"
 host="${2:-}"

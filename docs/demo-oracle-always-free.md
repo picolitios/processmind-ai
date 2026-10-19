@@ -34,7 +34,9 @@ proprietário; `onrender.com` não pertence a uma VM Oracle. Um subdomínio grat
 2. Hostname DNS com A/AAAA correto. Caddy precisa de entrada 80/443 para emitir
    e renovar HTTPS. Verifique a resolução e a porta antes de iniciar.
 3. Clone público em `/opt/processmind` sob o usuário de deploy. Instale Docker
-   Engine com plugin Compose, Python 3 e Git. Confirme imagens ARM64 no CI.
+   Engine com plugin Compose, Python 3 e Git. Acesso ao socket Docker equivale
+   a privilégios administrativos na VM: dedique essa conta ao deploy e proteja
+   sua chave SSH. Confirme imagens ARM64 no CI.
 4. Copie `infra/demo/env.example` para `/opt/processmind/.env`. Preencha
    `DEMO_HOST` e `WEB_ORIGIN=https://<mesmo-host>`. Gere separadamente cada
    senha/`AUTH_HASH_KEY` com `openssl rand -hex 32`. Use só caracteres hex nas
