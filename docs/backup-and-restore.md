@@ -42,20 +42,39 @@ archive listing. A full restore test needs **fresh, isolated** Compose volumes.
 Never run `pg_restore` against the source database or mix restored uploads with
 an existing upload volume.
 
-On a separate host or isolated Compose project with an empty PostgreSQL volume,
-start only `db` and `rabbitmq`. Restore the database with `pg_restore` using
-the administrative credential, then restore `uploads.tar` into its empty
-`upload_data` volume. Apply no migrations until confirming the restored
-`public.alembic_version` matches the application image. Run
-`docker compose run --rm --no-deps db-admin python -m app.db.provision_roles`
-to recreate the schema-scoped runtime roles using that environment's own
-passwords and grants. Then start application services and
-run the browser acceptance flow against the restored environment. Use the
-same application version as the backup before attempting an upgrade.
+On a separate host with empty Compose volumes and new local secrets, use the
+same application commit as the backup. The commands below assume `$backup`
+points to a copied and verified backup directory. Keep all application
+processes stopped until both archives are restored. Do not run `alembic
+upgrade` against an empty database first: the archive contains its own schema
+and `public.alembic_version`.
+
+```powershell
+$backup = 'D:\protected\processmind-backup'
+docker compose build db-admin api identity worker model-worker audit-publisher audit-consumer audit-monitor web identity-config-reconciler
+docker compose up -d --wait db rabbitmq
+python scripts/backup_local.py verify $backup
+$databaseContainer = docker compose ps -q db
+docker cp (Join-Path $backup 'database.dump') "${databaseContainer}:/tmp/processmind-restore.dump"
+docker compose exec -T db sh -c 'pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --no-owner --no-acl /tmp/processmind-restore.dump'
+$backupPath = (Resolve-Path $backup).Path
+docker compose run --rm --no-deps -T --volume "${backupPath}:/restore:ro" --entrypoint tar worker -C /data/uploads -xf /restore/uploads.tar
+docker compose run --rm --no-deps db-admin python -m app.db.provision_roles
+docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atqc "SELECT version_num FROM public.alembic_version"'
+docker compose up -d --no-build --wait --wait-timeout 180
+```
+
+Before opening the UI, confirm `public.alembic_version` matches the checked
+out image and run the browser acceptance flow against the restored environment.
+The role-provisioning command recreates schema-scoped runtime roles and grants
+using that environment's own passwords. The local `verify` action requires a
+running `db` service for `pg_restore --list`.
+If the source stack runs on the same host, its bound ports conflict with this
+Compose file; use another host or an explicit isolated port configuration.
 
 The CI gate executes the database restore into a separate temporary database
-within a disposable Compose stack and compares record counts. It checks the
-upload archive integrity without extracting customer data. RabbitMQ starts
+within a disposable Compose stack and compares record counts. It extracts the
+synthetic upload archive to a temporary directory and checks referenced files. RabbitMQ starts
 empty on restore because the backup preflight required all audit queues empty.
 This procedure has no production RPO/RTO, automated schedule, or live restore
 guarantee; test an offsite copy and document recovery objectives before using
