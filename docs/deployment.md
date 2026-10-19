@@ -1,8 +1,9 @@
 # Local deployment and release gate
 
 ProcessMind AI currently runs as a single-host Docker Compose installation.
-This is the reproducible deployment for development, demonstration and
-technical evaluation. It has no public TLS endpoint, offsite backup schedule,
+The [Oracle Always Free demo guide](demo-oracle-always-free.md) prepares a public
+TLS installation but has not been deployed or validated on a public VM. The
+local installation has no public TLS endpoint, offsite backup schedule,
 high availability or production recovery objective. Do not expose its bound
 local ports as a customer service without designing and validating those
 operational controls.
