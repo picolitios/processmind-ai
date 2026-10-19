@@ -52,7 +52,8 @@ protegida fora da VM para sobreviver à perda da instância.
 3. O deploy não inicia sem variável explícita, CI verde, ambiente protegido,
    segredos SSH e host conhecido. Nenhum segredo de aplicação vai ao log/Git.
 4. A instalação nova aplica migrações versionadas, inicia serviços com volumes
-   persistentes e passa `verify_deployment.py`.
+   persistentes e passa `verify_deployment.py`; o bootstrap automatiza a
+   sequência e recusa volumes existentes, segredos fracos ou checkout sujo.
 5. Na URL pública, HTTPS, saúde e E2E completo passam com dados sintéticos.
 6. Backup, restauração isolada e rollback estão documentados e são exercidos
    antes de chamar o ambiente de demonstração funcional.

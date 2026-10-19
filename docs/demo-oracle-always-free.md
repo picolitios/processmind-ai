@@ -51,22 +51,18 @@ proprietário; `onrender.com` não pertence a uma VM Oracle. Um subdomínio grat
 
 ## Instalação inicial
 
-Na VM, a primeira subida é explícita; o workflow automatiza atualizações de um
+Na VM, o bootstrap é explícito; o workflow automatiza atualizações de um
 ambiente já saudável. Execute no commit da `main` que passou CI:
 
 ```bash
 cd /opt/processmind
-docker compose -f compose.yaml -f compose.demo.yaml config --quiet
-docker compose up -d --wait db rabbitmq
-docker compose build db-admin api identity identity-config-reconciler worker model-worker audit-publisher audit-consumer audit-monitor web
-docker compose run --rm --no-deps db-admin alembic upgrade head
-docker compose run --rm --no-deps db-admin python -m app.db.provision_roles
-docker compose -f compose.yaml -f compose.demo.yaml up -d --no-build --wait --wait-timeout 180
-python3 scripts/verify_deployment.py
-curl --fail --silent --show-error https://SEU_HOST/api/v1/health/ready
+bash scripts/bootstrap_demo.sh SEU_HOST
 ```
 
-O Caddy deve obter certificado válido; não use `curl -k`. O preflight verifica
+O script recusa checkout sujo, segredos fracos/reutilizados, `.env` público,
+containers ou volumes existentes. Se uma instalação parcial falhar, preserve
+seus volumes e investigue antes de repetir; o script não apaga dados. O Caddy
+deve obter certificado válido; não use `curl -k`. O preflight verifica
 os 11 serviços persistentes, revisão do banco, limites de credenciais e filas.
 Inspecione `docker compose ps`, `docker compose logs --tail 100 caddy` e
 `docker compose logs --tail 100 audit-monitor` sem publicar dados sensíveis.
