@@ -158,9 +158,28 @@ def process_delivery(channel: Any, delivery_tag: int, body: bytes) -> None:
         log_audit_event("audit-consumer", "audit_delivery", "invalid", None, None)
         return
     with Session(make_engine()) as db:
-        job = db.scalar(
-            select(Job).where(Job.id == event.payload.job_id, Job.type == "audit").with_for_update()
+        exists_for_tenant = db.scalar(
+            select(Job.id).where(
+                Job.id == event.payload.job_id,
+                Job.type == "audit",
+                Job.organization_id == event.tenant_id,
+            )
         )
+        job = db.scalar(
+            select(Job).where(
+                Job.id == event.payload.job_id,
+                Job.type == "audit",
+                Job.organization_id == event.tenant_id,
+            )
+            .with_for_update(skip_locked=True)
+        )
+        if job is None and exists_for_tenant is not None:
+            # An active transaction owns the row; do not spend another attempt.
+            db.rollback()
+            publish(channel, body, str(event.event_id), RETRY_5)
+            channel.basic_ack(delivery_tag=delivery_tag)
+            log_delivery(event, "locked_retry")
+            return
         run = db.scalar(
             select(AuditRun).where(
                 AuditRun.id == event.payload.audit_id,
@@ -190,16 +209,13 @@ def process_delivery(channel: Any, delivery_tag: int, body: bytes) -> None:
             log_delivery(event, "already_failed")
             return
         now = datetime.now(UTC)
-        if job.status == "running" and job.lease_until and job.lease_until > now:
-            db.rollback()
-            publish(channel, body, str(event.event_id), RETRY_5)
-            channel.basic_ack(delivery_tag=delivery_tag)
-            log_delivery(event, "leased_retry")
-            return
+        # A requeued delivery can reclaim an abandoned attempt immediately.
+        # The claim token fences the prior owner in the gap before its row lock.
         if job.attempt_count >= 3:
             job.status = "failed"
             job.error_code = "lease_expired"
             job.lease_until = None
+            job.attempt_token = None
             run.status = "failed"
             run.finished_at = now
             run.limitation = "Falha no processamento (lease_expired)."
@@ -210,13 +226,15 @@ def process_delivery(channel: Any, delivery_tag: int, body: bytes) -> None:
             return
         job.status = "running"
         job.attempt_count += 1
+        job.attempt_token = uuid.uuid4()
         job.lease_until = now + timedelta(hours=1)
         job.error_code = None
         attempt = job.attempt_count
+        attempt_token = job.attempt_token
         db.commit()
         try:
-            process_audit_job(db, job.id)
-            outcome = "succeeded"
+            completed = process_audit_job(db, job.id, attempt_token)
+            outcome = "succeeded" if completed else "superseded"
             error_type = None
         except Exception as exc:
             db.rollback()
@@ -224,10 +242,16 @@ def process_delivery(channel: Any, delivery_tag: int, body: bytes) -> None:
             run = db.scalar(select(AuditRun).where(AuditRun.id == event.payload.audit_id))
             if job is None or run is None:
                 raise
+            if job.attempt_token != attempt_token:
+                db.rollback()
+                channel.basic_ack(delivery_tag=delivery_tag)
+                log_delivery(event, "superseded")
+                return
             permanent = isinstance(exc, ValueError)
             job.status = "failed" if permanent or attempt >= 3 else "queued"
             job.error_code = type(exc).__name__[:80]
             job.lease_until = None
+            job.attempt_token = None
             run.status = job.status
             if job.status == "failed":
                 run.finished_at = datetime.now(UTC)

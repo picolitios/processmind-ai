@@ -15,9 +15,10 @@ from app.core.config import settings
 from app.db.engine import make_engine
 from app.features.audit import broker
 from app.features.audit.broker import DEAD, RETRY_5, process_delivery, validate_event
-from app.features.audit.models import AuditFinding
+from app.features.audit.models import AuditFinding, AuditRun
 from app.features.audit.operations import database_metrics
 from app.features.audit.outbox import OutboxEvent
+from app.features.ingestion.models import Job
 from app.features.ingestion.worker import run_once
 from app.main import app
 
@@ -98,10 +99,51 @@ def test_audit_event_is_atomic_tenant_checked_and_idempotent(
         assert channel.basic_ack.call_count == 1
         assert channel.basic_publish.call_args.kwargs["routing_key"] == RETRY_5
         assert client.get(f"{base}/audits/{created.json()['id']}").json()["status"] == "queued"
-        monkeypatch.setattr(broker, "process_audit_job", original_processor)
+
+        # A delivery racing active processing must keep the current attempt.
+        with Session(make_engine()) as active_db:
+            locked = active_db.scalar(
+                select(Job).where(Job.id == uuid.UUID(created.json()["job_id"]))
+                .with_for_update()
+            )
+            assert locked is not None and locked.attempt_count == 1
+            channel.reset_mock()
+            process_delivery(channel, 2, body)
+            assert channel.basic_publish.call_args.kwargs["routing_key"] == RETRY_5
+            assert locked.attempt_count == 1
+            active_db.rollback()
+
+        # A process exit after the claim leaves a future lease and no ACK.
+        def crash(*_: object) -> None:
+            raise SystemExit("simulated consumer exit")
+
+        monkeypatch.setattr(broker, "process_audit_job", crash)
         channel.reset_mock()
-        process_delivery(channel, 2, body)
+        with pytest.raises(SystemExit):
+            process_delivery(channel, 3, body)
+        assert channel.basic_ack.call_count == 0
+        with Session(make_engine()) as db:
+            crashed = db.get(Job, uuid.UUID(created.json()["job_id"]))
+            assert crashed is not None and crashed.status == "running"
+            assert crashed.lease_until is not None and crashed.lease_until > datetime.now(UTC)
+            assert crashed.attempt_count == 2 and crashed.attempt_token is not None
+            old_token = crashed.attempt_token
+
+        def complete_after_fencing(db: Session, job_id: uuid.UUID, token: uuid.UUID) -> bool:
+            with Session(make_engine()) as stale_db:
+                assert not original_processor(stale_db, job_id, old_token)
+            return original_processor(db, job_id, token)
+
+        # RabbitMQ re-delivers the unacknowledged body on connection loss.
+        # Recovery must not wait for the one-hour database lease.
+        monkeypatch.setattr(broker, "process_audit_job", complete_after_fencing)
+        channel.reset_mock()
+        process_delivery(channel, 4, body)
         assert channel.basic_ack.call_count == 1
+        with Session(make_engine()) as db:
+            recovered = db.get(Job, uuid.UUID(created.json()["job_id"]))
+            assert recovered is not None and recovered.attempt_count == 3
+            assert recovered.attempt_token is None
         result = client.get(f"{base}/audits/{created.json()['id']}")
         assert result.status_code == 200 and result.json()["status"] == "succeeded"
         with Session(make_engine()) as db:
@@ -110,7 +152,7 @@ def test_audit_event_is_atomic_tenant_checked_and_idempotent(
                     select(AuditFinding).where(AuditFinding.run_id == audit_id)
                 ).all()
             )
-        process_delivery(channel, 3, body)
+        process_delivery(channel, 5, body)
         assert channel.basic_ack.call_count == 2
         with Session(make_engine()) as db:
             assert len(
@@ -121,7 +163,73 @@ def test_audit_event_is_atomic_tenant_checked_and_idempotent(
 
         invalid = json.loads(body)
         invalid["tenant_id"] = str(uuid.uuid4())
-        process_delivery(channel, 4, json.dumps(invalid).encode())
+        process_delivery(channel, 6, json.dumps(invalid).encode())
         assert channel.basic_ack.call_count == 3
         assert channel.basic_publish.call_args.kwargs["routing_key"] == DEAD
         assert validate_event(b'{}') is None
+
+        # Repeated process exits consume the bounded attempt budget.
+        exhausted_audit = client.post(
+            f"{base}/audits",
+            headers={**csrf_headers(token), "Idempotency-Key": uuid.uuid4().hex},
+            json={"import_ids": [import_id]},
+        )
+        assert exhausted_audit.status_code == 202, exhausted_audit.text
+        with Session(make_engine()) as db:
+            exhausted_event = next(
+                event for event in db.scalars(
+                    select(OutboxEvent).where(
+                        OutboxEvent.organization_id == uuid.UUID(org_id)
+                    )
+                )
+                if event.envelope["payload"]["audit_id"] == exhausted_audit.json()["id"]
+            )
+            exhausted_body = json.dumps(exhausted_event.envelope).encode()
+        monkeypatch.setattr(broker, "process_audit_job", crash)
+        for attempt in range(3):
+            with pytest.raises(SystemExit):
+                process_delivery(channel, 7 + attempt, exhausted_body)
+        channel.reset_mock()
+        process_delivery(channel, 10, exhausted_body)
+        assert channel.basic_publish.call_args.kwargs["routing_key"] == DEAD
+        assert client.get(f"{base}/audits/{exhausted_audit.json()['id']}").json()[
+            "status"
+        ] == "failed"
+
+        # A stale worker exception must not overwrite a newer terminal state.
+        stale_audit = client.post(
+            f"{base}/audits",
+            headers={**csrf_headers(token), "Idempotency-Key": uuid.uuid4().hex},
+            json={"import_ids": [import_id]},
+        )
+        assert stale_audit.status_code == 202, stale_audit.text
+        with Session(make_engine()) as db:
+            stale_event = next(
+                event for event in db.scalars(
+                    select(OutboxEvent).where(
+                        OutboxEvent.organization_id == uuid.UUID(org_id)
+                    )
+                )
+                if event.envelope["payload"]["audit_id"] == stale_audit.json()["id"]
+            )
+            stale_body = json.dumps(stale_event.envelope).encode()
+
+        def newer_terminal(*_: object) -> None:
+            with Session(make_engine()) as newer_db:
+                newer_job = newer_db.get(Job, uuid.UUID(stale_audit.json()["job_id"]))
+                newer_run = newer_db.get(AuditRun, uuid.UUID(stale_audit.json()["id"]))
+                assert newer_job is not None and newer_run is not None
+                newer_job.status = "failed"
+                newer_job.attempt_token = None
+                newer_run.status = "failed"
+                newer_db.commit()
+            raise RuntimeError("old attempt failed after losing claim")
+
+        monkeypatch.setattr(broker, "process_audit_job", newer_terminal)
+        channel.reset_mock()
+        process_delivery(channel, 11, stale_body)
+        assert channel.basic_ack.call_count == 1
+        with Session(make_engine()) as db:
+            stale_job = db.get(Job, uuid.UUID(stale_audit.json()["job_id"]))
+            assert stale_job is not None and stale_job.status == "failed"
+            assert stale_job.error_code is None

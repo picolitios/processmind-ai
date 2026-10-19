@@ -141,6 +141,7 @@ class Job(Base):
     payload_json: Mapped[dict[str, Any]] = mapped_column(JSONB)
     idempotency_key: Mapped[str] = mapped_column(String(128))
     attempt_count: Mapped[int] = mapped_column(Integer, default=0)
+    attempt_token: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     error_code: Mapped[str | None] = mapped_column(String(80))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
