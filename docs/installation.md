@@ -108,6 +108,8 @@ Auditorias novas usam a outbox e RabbitMQ em Compose. `http://localhost:15672` m
 
 Os serviços persistentes usam `restart: unless-stopped` para voltar após falhas de processo ou reinício do Docker. Se você os interromper intencionalmente com `docker compose stop`, retome-os com `docker compose start` ou `docker compose up -d --no-build`; a política de reinício respeita a parada manual. Após reiniciar o Docker, confirme `docker compose ps` e os healthchecks antes de usar a interface. Esse mecanismo não substitui backup nem alta disponibilidade.
 
+Para proteger os volumes de banco e uploads, siga o [procedimento de backup quiescido e restauração isolada](backup-and-restore.md). Ele exige drenar a auditoria e interromper os escritores; não use `docker compose down -v` nem restaure o arquivo sobre dados existentes.
+
 ## IA opcional
 
 A importação, auditoria, casos e indicadores funcionam sem Ollama. Para habilitar explicações e respostas do copiloto, instale e inicie Ollama no host e disponibilize o modelo definido em `OLLAMA_MODEL` no `.env`. `model-worker` usa `OLLAMA_BASE_URL` para acessá-lo. Quando indisponível, a interface informa a limitação; as regras determinísticas continuam funcionando.

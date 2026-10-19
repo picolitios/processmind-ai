@@ -44,7 +44,7 @@ The [user guide](docs/user-guide.md) and [example CSV](examples/compras-exemplo.
 
 Run `ruff check .`, `mypy app`, migrations and `pytest` from `apps/api` with a fresh test database (`DATABASE_URL`, `RUN_DB_TESTS=1`). Run `npm run lint`, `npm run typecheck`, `npm run test`, `npm run build` and `npm run test:e2e` from `apps/web`; E2E uses the running Compose stack. CI runs API and web gates plus an isolated PostgreSQL/RabbitMQ recovery test (`RUN_BROKER_TESTS=1`).
 
-The [MVP stabilization results](specs/testing/phase7-results.md), [load report](specs/testing/phase7-load-report.md), [audit evaluation](specs/testing/audit-evaluation.md) and [delivery evidence](specs/testing/phase8-delivery.md) contain measured results and limitations. No distributed-load benchmark is claimed for the broker path yet.
+The [MVP stabilization results](specs/testing/phase7-results.md), [load report](specs/testing/phase7-load-report.md), [audit evaluation](specs/testing/audit-evaluation.md) and [delivery evidence](specs/testing/phase8-delivery.md) contain measured results and limitations. The [distributed-load result](specs/testing/distributed-load-results.md) covers a small concurrent broker-path sample, not production capacity.
 
 For an aggregate audit-dispatch snapshot, run `docker compose run --rm --no-deps audit-publisher python -m app.features.audit.operations --max-pending-age-seconds 300 --fail-on-expired-leases --fail-on-dead-letter`. The read-only command returns JSON and exits with code 2 when a selected threshold is exceeded; see the [operations contract](specs/architecture/audit-operations-v1.md). It does not expose tenant data or event payloads.
 
@@ -56,3 +56,5 @@ The [OpenAPI contract](specs/architecture/openapi.yaml), [event catalog](docs/ar
 
 The browser CI job also runs [concurrent synthetic import and audit journeys](specs/testing/distributed-load-v1.md) through the public nginx URL on its disposable stack. It uploads JSON latency, throughput and error measurements as a workflow artifact. These exploratory results are not production capacity claims.
 The [local measurement report](specs/testing/distributed-load-results.md) records the first complete distributed run and its limits.
+
+For local data protection, follow the [quiesced backup and isolated restore guide](docs/backup-and-restore.md). It covers PostgreSQL and private uploads and refuses a backup while application writers or audit dispatch remain active. No automated offsite retention or production recovery objective is established.
