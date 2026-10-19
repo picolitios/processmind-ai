@@ -6,7 +6,7 @@ Status: approved for the first architecture migration increment. This specificat
 
 1. In broker mode, a successful audit POST persists `AuditRun`, `Job` and one `OutboxEvent` in one transaction. Replaying the idempotency key with the same imports returns the original audit without another event.
 2. The publisher sends `audit.requested` version 1 with publisher confirm and mandatory routing. Failed publication leaves `published_at` null. A crash between confirmation and marking may produce a duplicate.
-3. The consumer checks event version, tenant ID, audit ID, job ID and their persisted association. It claims a queued or expired audit job, processes existing deterministic rules and acknowledges after commit. A succeeded job makes duplicate delivery a no-op.
+3. The consumer checks event version, tenant ID, audit ID, job ID and their persisted association. It claims a queued job or reclaims a running job when its row is unlocked, processes existing deterministic rules and acknowledges after commit. A locked job takes a delayed retry without consuming an attempt; a persisted attempt token fences the previous owner as specified in `audit-crash-recovery-v1.md`. A succeeded job makes duplicate delivery a no-op.
 4. Transient failures retry with delayed queues and at most three processing attempts. Invalid, permanent and exhausted deliveries go to a dead-letter queue. Audit status becomes `failed` for permanent or exhausted processing errors. Tenant-authorized API reads expose status and findings.
 5. Import and AI jobs remain on the database worker. In broker mode it must not claim audit jobs. Database mode preserves the old audit path for rollback.
 

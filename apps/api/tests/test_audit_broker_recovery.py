@@ -105,3 +105,40 @@ def test_broker_outage_recovery_and_duplicate_delivery(
             assert client.get(f"{base}/audits/{audit_id}").json()["finding_count"] == first_count
         finally:
             connection.close()
+
+        # A closed consumer connection requeues its unacknowledged delivery.
+        # The new consumer must reclaim the committed job without a one-hour wait.
+        second = client.post(
+            f"{base}/audits",
+            headers={**csrf_headers(token), "Idempotency-Key": uuid.uuid4().hex},
+            json={"import_ids": [uploaded.json()["id"]]},
+        )
+        assert second.status_code == 202, second.text
+        assert broker.publish_one()
+        original_processor = broker.process_audit_job
+
+        def crash(*_: object) -> None:
+            raise SystemExit("simulated consumer exit")
+
+        monkeypatch.setattr(broker, "process_audit_job", crash)
+        abandoned = broker.connect()
+        try:
+            channel = abandoned.channel()
+            method, _, body = channel.basic_get(broker.QUEUE, auto_ack=False)
+            assert method is not None and body is not None
+            with pytest.raises(SystemExit):
+                broker.process_delivery(channel, method.delivery_tag, body)
+        finally:
+            abandoned.close()
+
+        monkeypatch.setattr(broker, "process_audit_job", original_processor)
+        recovered = broker.connect()
+        try:
+            channel = recovered.channel()
+            method, _, body = channel.basic_get(broker.QUEUE, auto_ack=False)
+            assert method is not None and body is not None
+            broker.process_delivery(channel, method.delivery_tag, body)
+            result = client.get(f"{base}/audits/{second.json()['id']}")
+            assert result.status_code == 200 and result.json()["status"] == "succeeded"
+        finally:
+            recovered.close()

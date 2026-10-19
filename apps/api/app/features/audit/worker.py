@@ -10,10 +10,16 @@ from app.features.audit_trail.events import append_business_event
 from app.features.ingestion.models import ImportBatch, ImportRow, Job, Purchase
 
 
-def process_audit_job(db: Session, job_id: uuid.UUID) -> None:
+def process_audit_job(
+    db: Session, job_id: uuid.UUID, attempt_token: uuid.UUID | None = None
+) -> bool:
+    """Commit an audit only when this broker delivery still owns its claim."""
     job = db.scalar(select(Job).where(Job.id == job_id, Job.type == "audit").with_for_update())
-    if job is None or job.status != "running":
-        return
+    if job is None or job.status != "running" or (
+        attempt_token is not None and job.attempt_token != attempt_token
+    ):
+        db.rollback()
+        return False
     run = db.scalar(
         select(AuditRun)
         .where(
@@ -27,8 +33,9 @@ def process_audit_job(db: Session, job_id: uuid.UUID) -> None:
     if run.status == "succeeded":
         job.status = "succeeded"
         job.lease_until = None
+        job.attempt_token = None
         db.commit()
-        return
+        return True
     run.status = "running"
     run.started_at = datetime.now(UTC)
     imports = [uuid.UUID(value) for value in run.import_ids]
@@ -87,6 +94,7 @@ def process_audit_job(db: Session, job_id: uuid.UUID) -> None:
     run.finished_at = datetime.now(UTC)
     job.status = "succeeded"
     job.lease_until = None
+    job.attempt_token = None
     append_business_event(
         db,
         run.organization_id,
@@ -97,3 +105,4 @@ def process_audit_job(db: Session, job_id: uuid.UUID) -> None:
         {"finding_count": len(drafts), "rule_set_version": RULE_VERSION},
     )
     db.commit()
+    return True

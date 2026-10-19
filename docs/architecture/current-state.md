@@ -16,7 +16,7 @@ The local deployment gate combines Compose health, Alembic head, runtime credent
 
 - The original database polling path is retained for rollback. The RabbitMQ path adds an event contract but still uses the shared job table and database; it is not yet a separately owned audit service.
 - One database, migration role and shared Python image still couple identity and business operations. This is schema and runtime-credential isolation, not independent database infrastructure.
-- The worker's one-hour lease and three attempts give recovery for many failures, but a crash during processing can delay retry until lease expiry.
+- Broker re-delivery after a consumer crash reclaims the audit job when no active transaction holds its row. A per-attempt token fences a previous consumer before it writes results; a locked row takes the delayed retry path. The one-hour lease remains for the database worker and for diagnosing jobs whose broker message is unavailable.
 - Business readiness checks PostgreSQL and identity in Compose. The audit monitor provides a local broker/dispatch health signal, not external paging or retained time-series metrics. Correlated JSON records cover HTTP ingress and the audit broker path, but not full distributed spans or every process log.
 - API, web, real RabbitMQ recovery, browser E2E and a small concurrent distributed-load sample run in CI. Browser E2E is also available for explicit local execution; CI runner timings do not establish production capacity.
 - A quiesced local backup covers PostgreSQL and private uploads, with a manifest and isolated CI database-restore check. Backup scheduling, offsite retention, full upload-volume restore testing and production recovery objectives remain open.
