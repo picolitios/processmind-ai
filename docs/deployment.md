@@ -48,7 +48,7 @@ data, restarts a container or replays a dead letter.
    backup into a live volume or downgrade a populated schema automatically.
 
 The CI performs the release gate on a disposable migrated stack before browser
-E2E, then exercises load and a database restore check. It provides repeatable
+E2E, then exercises load and isolated database and upload-volume restore checks. It provides repeatable
 local evidence, not a production deployment approval. A customer deployment
 still needs TLS, secret management, access controls for ports and volumes,
 encrypted offsite backups with tested restore, monitoring retention and

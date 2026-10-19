@@ -19,7 +19,7 @@ The local deployment gate combines Compose health, Alembic head, runtime credent
 - Broker re-delivery after a consumer crash reclaims the audit job when no active transaction holds its row. A per-attempt token fences a previous consumer before it writes results; a locked row takes the delayed retry path. The one-hour lease remains for the database worker and for diagnosing jobs whose broker message is unavailable.
 - Business readiness checks PostgreSQL and identity in Compose. The audit monitor provides a local broker/dispatch health signal, not external paging or retained time-series metrics. Correlated JSON records cover HTTP ingress and the audit broker path, but not full distributed spans or every process log.
 - API, web, real RabbitMQ recovery, browser E2E and a small concurrent distributed-load sample run in CI. Browser E2E is also available for explicit local execution; CI runner timings do not establish production capacity.
-- A quiesced local backup covers PostgreSQL and private uploads, with a manifest and isolated CI database-restore check. Backup scheduling, offsite retention, full upload-volume restore testing and production recovery objectives remain open.
+- A quiesced local backup covers PostgreSQL and private uploads, with a manifest and isolated CI database and upload-volume restore checks. Backup scheduling, offsite retention and production recovery objectives remain open.
 - `specs/decisions/0001-modular-monolith.md` correctly records the MVP decision. The new architecture request is an evolution, not a retroactive replacement.
 
 ## Reuse
