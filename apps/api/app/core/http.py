@@ -2,6 +2,7 @@ import uuid
 from collections.abc import Awaitable, Callable
 from time import perf_counter
 
+import httpx
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,6 +24,22 @@ from app.db.engine import make_engine
 
 class Health(BaseModel):
     status: str
+
+
+def identity_ready() -> bool:
+    """Probe the required identity boundary without sending session data."""
+    try:
+        with httpx.Client(timeout=2, trust_env=False) as client:
+            response = client.get(
+                f"{settings.identity_internal_url.rstrip('/')}/api/v1/health/ready"
+            )
+        return (
+            response.status_code == 200
+            and response.headers.get("X-ProcessMind-Service") == "identity"
+            and response.json() == {"status": "ok"}
+        )
+    except (httpx.RequestError, ValueError):
+        return False
 
 
 def configure_http(app: FastAPI, service_name: str | None = None) -> None:
@@ -77,4 +94,8 @@ def configure_http(app: FastAPI, service_name: str | None = None) -> None:
         except SQLAlchemyError:
             response.status_code = 503
             return Health(status="unavailable")
+        if service_name != "identity" and settings.business_auth_mode == "identity":
+            if not identity_ready():
+                response.status_code = 503
+                return Health(status="unavailable")
         return Health(status="ok")

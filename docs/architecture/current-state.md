@@ -8,12 +8,14 @@ The audit engine is deterministic and stores findings with evidence. Ollama prod
 
 The V2 copilot is integrated with normal and temporary chats, organization memory, approval policy, evidence citations and a local-model fallback. An operator-only command reports aggregate outbox, audit-job and RabbitMQ queue metrics with optional failure thresholds; no tenant data is exposed by that command. A separate Compose monitor samples these aggregates and signals stale or failed audit dispatch through container health. Business and identity requests and audit broker transitions emit allowlisted JSON records with the event's correlation ID.
 
+Business readiness in Compose requires both PostgreSQL and identity readiness because authorization depends on the dedicated identity process. The web healthcheck probes that route through nginx; broker health remains an independent monitor signal so a temporary broker outage does not reject a committed audit request.
+
 ## Risks and constraints
 
 - The original database polling path is retained for rollback. The RabbitMQ path adds an event contract but still uses the shared job table and database; it is not yet a separately owned audit service.
 - One database, migration role and shared Python image still couple identity and business operations. This is schema and runtime-credential isolation, not independent database infrastructure.
 - The worker's one-hour lease and three attempts give recovery for many failures, but a crash during processing can delay retry until lease expiry.
-- The API readiness check verifies PostgreSQL only. The audit monitor provides a local Compose health signal, not external paging or retained time-series metrics. Correlated JSON records cover HTTP ingress and the audit broker path, but not full distributed spans or every process log.
+- Business readiness checks PostgreSQL and identity in Compose. The audit monitor provides a local broker/dispatch health signal, not external paging or retained time-series metrics. Correlated JSON records cover HTTP ingress and the audit broker path, but not full distributed spans or every process log.
 - API, web, real RabbitMQ recovery, browser E2E and a small concurrent distributed-load sample run in CI. Browser E2E is also available for explicit local execution; CI runner timings do not establish production capacity.
 - A quiesced local backup covers PostgreSQL and private uploads, with a manifest and isolated CI database-restore check. Backup scheduling, offsite retention, full upload-volume restore testing and production recovery objectives remain open.
 - `specs/decisions/0001-modular-monolith.md` correctly records the MVP decision. The new architecture request is an evolution, not a retroactive replacement.

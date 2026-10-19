@@ -35,6 +35,8 @@ O banco deve aparecer como saudável antes da migração; API e web devem aparec
 
 Se o banco ainda estiver inicializando, espere o healthcheck e repita somente o comando que falhou. Execute migrações novamente após atualizar o código, antes de reiniciar o worker. Não use `docker compose down -v` em uma instalação que contenha dados a preservar.
 
+Em Compose, a prontidão da API empresarial exige PostgreSQL e identidade disponíveis; o healthcheck web verifica essa rota através do nginx. Uma falha da identidade devolve `503` até a recuperação, sem expor dados da sessão. O broker é observado separadamente pelo `audit-monitor`, pois a outbox preserva pedidos durante uma interrupção dele.
+
 Para **atualizar uma instalação existente**, termine primeiro os jobs de auditoria antigos em modo `database`. Execute os gates de reconciliação descritos abaixo com a credencial administrativa e exija resultados limpos e `pending=blocked=0`. Anote as contagens das tabelas relevantes. Construa as imagens, pare todos os escritores e aplique a migração transacional com `db-admin`. Este serviço está no perfil `tools` e não inicia com `docker compose up` normal:
 
 ```powershell
