@@ -117,6 +117,33 @@ jobs:
         env:
           PROCESSMIND_LOAD_TEST: '1'
         run: python scripts/benchmark_distributed.py --size 1000 --users 3 --rounds 2 --output distributed-load-result.json
+      - name: Verify quiesced backup and isolated restore
+        run: |
+          python -m unittest discover -s scripts -p test_backup_local.py
+          docker compose stop web api identity identity-config-reconciler worker model-worker
+          for attempt in $(seq 1 30); do
+            state=$(docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atqc "SELECT (SELECT count(*) FROM business.outbox_events WHERE published_at IS NULL) + (SELECT count(*) FROM business.jobs WHERE type = '\''audit'\'' AND status IN ('\''queued'\'', '\''running'\''))"')
+            test "$state" = 0 && break
+            sleep 2
+          done
+          test "$state" = 0
+          docker compose stop audit-publisher audit-consumer
+          python scripts/backup_local.py backup backups/ci-proof
+          docker compose exec -T db sh -c 'createdb -U "$POSTGRES_USER" processmind_restore_check'
+          docker compose exec -T db sh -c 'pg_restore -U "$POSTGRES_USER" -d processmind_restore_check --no-owner --no-acl' < backups/ci-proof/database.dump
+          restore_admin_url="postgresql+psycopg://processmind:${POSTGRES_PASSWORD}@db:5432/processmind_restore_check"
+          docker compose run --rm --no-deps -e DATABASE_URL="$restore_admin_url" db-admin python -m app.db.provision_roles
+          docker compose run --rm --no-deps -e DATABASE_URL="postgresql+psycopg://processmind_business:${BUSINESS_DB_PASSWORD}@db:5432/processmind_restore_check" api python -m app.db.verify_role_boundary
+          docker compose run --rm --no-deps -e DATABASE_URL="postgresql+psycopg://processmind_identity:${IDENTITY_DB_PASSWORD}@db:5432/processmind_restore_check" identity python -m app.db.verify_role_boundary
+          source_counts=$(docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atqc "SELECT (SELECT count(*) FROM identity.users), (SELECT count(*) FROM business.import_batches), (SELECT count(*) FROM business.audit_runs), (SELECT count(*) FROM business.audit_findings)"')
+          restored_counts=$(docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d processmind_restore_check -Atqc "SELECT (SELECT count(*) FROM identity.users), (SELECT count(*) FROM business.import_batches), (SELECT count(*) FROM business.audit_runs), (SELECT count(*) FROM business.audit_findings)"')
+          test "$source_counts" = "$restored_counts"
+          restore_uploads=$(mktemp -d)
+          tar -xf backups/ci-proof/uploads.tar -C "$restore_uploads"
+          docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d processmind_restore_check -Atqc "SELECT private_storage_key FROM business.import_batches"' | while IFS= read -r key; do
+            test -f "$restore_uploads/$key"
+          done
+          echo "Backup and isolated restore verified"
       - name: Save distributed load evidence
         if: always()
         uses: actions/upload-artifact@v4

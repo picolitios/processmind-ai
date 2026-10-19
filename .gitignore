@@ -14,3 +14,4 @@ uploads/
 .coverage
 .uploads/
 synthetic-output/
+backups/
