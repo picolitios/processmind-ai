@@ -238,8 +238,18 @@ def process_delivery(channel: Any, delivery_tag: int, body: bytes) -> None:
             error_type = None
         except Exception as exc:
             db.rollback()
-            job = db.scalar(select(Job).where(Job.id == event.payload.job_id).with_for_update())
-            run = db.scalar(select(AuditRun).where(AuditRun.id == event.payload.audit_id))
+            job = db.scalar(
+                select(Job).where(
+                    Job.id == event.payload.job_id,
+                    Job.organization_id == event.tenant_id,
+                ).with_for_update()
+            )
+            run = db.scalar(
+                select(AuditRun).where(
+                    AuditRun.id == event.payload.audit_id,
+                    AuditRun.organization_id == event.tenant_id,
+                )
+            )
             if job is None or run is None:
                 raise
             if job.attempt_token != attempt_token:
