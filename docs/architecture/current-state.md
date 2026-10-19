@@ -1,4 +1,4 @@
-# Current state (2026-10-17)
+# Current state (2026-10-19)
 
 ## Implemented
 
@@ -9,6 +9,7 @@ The audit engine is deterministic and stores findings with evidence. Ollama prod
 The V2 copilot is integrated with normal and temporary chats, organization memory, approval policy, evidence citations and a local-model fallback. An operator-only command reports aggregate outbox, audit-job and RabbitMQ queue metrics with optional failure thresholds; no tenant data is exposed by that command. A separate Compose monitor samples these aggregates and signals stale or failed audit dispatch through container health. Business and identity requests and audit broker transitions emit allowlisted JSON records with the event's correlation ID.
 
 Business readiness in Compose requires both PostgreSQL and identity readiness because authorization depends on the dedicated identity process. The web healthcheck probes that route through nginx; broker health remains an independent monitor signal so a temporary broker outage does not reject a committed audit request.
+The local deployment gate combines Compose health, Alembic head, runtime credential probes and the aggregate audit-dispatch snapshot without changing data. The documented release sequence uses a quiesced backup and isolated restore evidence.
 
 ## Risks and constraints
 
