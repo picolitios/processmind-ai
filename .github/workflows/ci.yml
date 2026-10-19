@@ -93,6 +93,13 @@ jobs:
           docker compose run --rm --no-deps db-admin python -m app.db.provision_roles
       - name: Start application
         run: docker compose up -d --no-build --wait --wait-timeout 180 api identity identity-config-reconciler worker model-worker audit-publisher audit-consumer audit-monitor web
+      - name: Verify persistent service restart policies
+        run: |
+          for service in db rabbitmq api identity web worker model-worker audit-publisher audit-consumer audit-monitor identity-config-reconciler; do
+            container_id=$(docker compose ps -q "$service")
+            test -n "$container_id"
+            test "$(docker inspect --format '{{.HostConfig.RestartPolicy.Name}}' "$container_id")" = "unless-stopped"
+          done
       - name: Install browser test dependencies
         working-directory: apps/web
         run: |
