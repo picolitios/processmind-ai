@@ -101,6 +101,22 @@ jobs:
       - name: Run browser E2E
         working-directory: apps/web
         run: npm run test:e2e
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install distributed benchmark client
+        run: python -m pip install 'httpx>=0.28,<1'
+      - name: Measure concurrent distributed audit workflows
+        env:
+          PROCESSMIND_LOAD_TEST: '1'
+        run: python scripts/benchmark_distributed.py --size 1000 --users 3 --rounds 2 --output distributed-load-result.json
+      - name: Save distributed load evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: distributed-load-result
+          path: distributed-load-result.json
+          if-no-files-found: ignore
       - name: Show Compose status on failure
         if: failure()
         run: docker compose ps --all
