@@ -11,6 +11,7 @@ from sqlalchemy.sql.elements import ColumnElement
 
 from app.core.config import settings
 from app.core.errors import ApiError
+from app.core.observability import current_correlation_id
 from app.features.identity.introspection import (
     IntrospectionResult,
     MemberReference,
@@ -31,6 +32,19 @@ from app.features.identity.security import (
 )
 
 
+def private_headers(timestamp: str, token: str, subject: str | None) -> dict[str, str]:
+    """Sign the operation and optional business request ID as one private call."""
+    correlation = current_correlation_id.get()
+    correlation_id = uuid.UUID(correlation) if correlation else None
+    headers = {
+        "X-Internal-Timestamp": timestamp,
+        "X-Internal-Signature": signature(timestamp, token, subject, correlation_id),
+    }
+    if correlation_id is not None:
+        headers["X-Internal-Correlation-ID"] = str(correlation_id)
+    return headers
+
+
 def introspect_remote(token: str, csrf_token: str | None = None) -> IntrospectionResult:
     timestamp = str(int(time.time()))
     try:
@@ -38,10 +52,7 @@ def introspect_remote(token: str, csrf_token: str | None = None) -> Introspectio
             response = client.post(
                 f"{settings.identity_internal_url.rstrip('/')}/internal/v1/session/introspect",
                 json={"session_token": token, "csrf_token": csrf_token},
-                headers={
-                    "X-Internal-Timestamp": timestamp,
-                    "X-Internal-Signature": signature(timestamp, token, csrf_token),
-                },
+                headers=private_headers(timestamp, token, csrf_token),
             )
     except httpx.RequestError as exc:
         raise ApiError(503, "identity_unavailable", "Identidade indisponível") from exc
@@ -62,12 +73,7 @@ def authorize_membership_remote(token: str, organization_id: uuid.UUID) -> Membe
             response = client.post(
                 f"{settings.identity_internal_url.rstrip('/')}/internal/v1/membership/authorize",
                 json={"session_token": token, "organization_id": str(organization_id)},
-                headers={
-                    "X-Internal-Timestamp": timestamp,
-                    "X-Internal-Signature": signature(
-                        timestamp, token, f"membership:{organization_id}"
-                    ),
-                },
+                headers=private_headers(timestamp, token, f"membership:{organization_id}"),
             )
     except httpx.RequestError as exc:
         raise ApiError(503, "identity_unavailable", "Identidade indisponível") from exc
@@ -123,14 +129,10 @@ def resolve_member_references(
                     "membership_ids": [str(member_id) for member_id in ids],
                     "user_id": str(user_id) if user_id else None,
                 },
-                headers={
-                    "X-Internal-Timestamp": timestamp,
-                    "X-Internal-Signature": signature(
-                        timestamp,
-                        auth.token,
-                        member_references_subject(organization_id, ids, user_id),
-                    ),
-                },
+                headers=private_headers(
+                    timestamp, auth.token,
+                    member_references_subject(organization_id, ids, user_id),
+                ),
             )
     except httpx.RequestError as exc:
         raise ApiError(503, "identity_unavailable", "Identidade indisponível") from exc

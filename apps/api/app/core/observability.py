@@ -3,9 +3,13 @@
 import json
 import logging
 import sys
+from contextvars import ContextVar
 from datetime import UTC, datetime
 
 logger = logging.getLogger("processmind.operational")
+current_correlation_id: ContextVar[str | None] = ContextVar(
+    "processmind_correlation_id", default=None
+)
 logger.setLevel(logging.INFO)
 logger.propagate = False
 if not logger.handlers:

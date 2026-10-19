@@ -2,9 +2,9 @@ import hashlib
 import hmac
 import time
 import uuid
-from typing import Literal
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Header
+from fastapi import APIRouter, Header, Request
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import or_, select
 from sqlalchemy.sql.elements import ColumnElement
@@ -62,9 +62,16 @@ class MemberReferencesResult(BaseModel):
     members: list[MemberReference]
 
 
-def signature(timestamp: str, session_token: str, csrf_token: str | None) -> str:
-    message = f"{timestamp}\n{session_token}\n{csrf_token or ''}".encode()
-    return hmac.new(settings.auth_hash_key.encode(), message, hashlib.sha256).hexdigest()
+def signature(
+    timestamp: str, session_token: str, csrf_token: str | None,
+    correlation_id: uuid.UUID | None = None,
+) -> str:
+    """Bind optional request correlation to the existing private-call HMAC."""
+    message = f"{timestamp}\n{session_token}\n{csrf_token or ''}"
+    if correlation_id is not None:
+        message += f"\n{correlation_id}"
+    encoded = message.encode()
+    return hmac.new(settings.auth_hash_key.encode(), encoded, hashlib.sha256).hexdigest()
 
 
 def member_references_subject(
@@ -76,28 +83,34 @@ def member_references_subject(
 
 
 def verify_internal_signature(
-    timestamp: str, supplied: str, token: str, subject: str | None
+    timestamp: str, supplied: str, token: str, subject: str | None,
+    request: Request | None = None, correlation_id: uuid.UUID | None = None,
 ) -> None:
     try:
         issued_at = int(timestamp)
     except ValueError as exc:
         raise ApiError(403, "forbidden", "Serviço não autorizado") from exc
     valid_signature = len(supplied) == 64 and hmac.compare_digest(
-        supplied, signature(timestamp, token, subject)
+        supplied, signature(timestamp, token, subject, correlation_id)
     )
     if abs(time.time() - issued_at) > 30 or not valid_signature:
         raise ApiError(403, "forbidden", "Serviço não autorizado")
+    if request is not None and correlation_id is not None:
+        request.state.correlation_id = str(correlation_id)
 
 
 @router.post("/session/introspect", response_model=IntrospectionResult)
 def introspect(
     data: IntrospectionInput,
     db: DB,
+    request: Request,
     x_internal_timestamp: str = Header(),
     x_internal_signature: str = Header(),
+    x_internal_correlation_id: Annotated[uuid.UUID | None, Header()] = None,
 ) -> IntrospectionResult:
     verify_internal_signature(
-        x_internal_timestamp, x_internal_signature, data.session_token, data.csrf_token
+        x_internal_timestamp, x_internal_signature, data.session_token, data.csrf_token,
+        request, x_internal_correlation_id,
     )
     auth = authenticate_token(db, data.session_token)
     csrf_valid = data.csrf_token is not None and hmac.compare_digest(
@@ -112,14 +125,18 @@ def introspect(
 def authorize_membership(
     data: MembershipInput,
     db: DB,
+    request: Request,
     x_internal_timestamp: str = Header(),
     x_internal_signature: str = Header(),
+    x_internal_correlation_id: Annotated[uuid.UUID | None, Header()] = None,
 ) -> MembershipResult:
     verify_internal_signature(
         x_internal_timestamp,
         x_internal_signature,
         data.session_token,
         f"membership:{data.organization_id}",
+        request,
+        x_internal_correlation_id,
     )
     auth = authenticate_token(db, data.session_token)
     _, member = require_membership(db, auth, data.organization_id)
@@ -135,8 +152,10 @@ def authorize_membership(
 def resolve_member_references(
     data: MemberReferencesInput,
     db: DB,
+    request: Request,
     x_internal_timestamp: str = Header(),
     x_internal_signature: str = Header(),
+    x_internal_correlation_id: Annotated[uuid.UUID | None, Header()] = None,
 ) -> MemberReferencesResult:
     # The signed subject prevents changing the tenant or requested IDs after authorization.
     verify_internal_signature(
@@ -144,6 +163,8 @@ def resolve_member_references(
         x_internal_signature,
         data.session_token,
         member_references_subject(data.organization_id, data.membership_ids, data.user_id),
+        request,
+        x_internal_correlation_id,
     )
     auth = authenticate_token(db, data.session_token)
     require_membership(db, auth, data.organization_id)
