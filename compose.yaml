@@ -1,6 +1,7 @@
 services:
   db:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-processmind}
       POSTGRES_USER: ${POSTGRES_USER:-processmind}
@@ -16,6 +17,7 @@ services:
       retries: 10
   rabbitmq:
     image: rabbitmq:4-management-alpine
+    restart: unless-stopped
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-processmind}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-change-me-local}
@@ -41,6 +43,7 @@ services:
         condition: service_healthy
   api:
     build: ./apps/api
+    restart: unless-stopped
     environment:
       DATABASE_URL: postgresql+psycopg://processmind_business:${BUSINESS_DB_PASSWORD:?Set BUSINESS_DB_PASSWORD in .env}@db:5432/${POSTGRES_DB:-processmind}
       WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:5173}
@@ -70,6 +73,7 @@ services:
       retries: 5
   identity:
     build: ./apps/api
+    restart: unless-stopped
     command: ["uvicorn", "app.identity_app:app", "--host", "0.0.0.0", "--port", "8000"]
     environment:
       DATABASE_URL: postgresql+psycopg://processmind_identity:${IDENTITY_DB_PASSWORD:?Set IDENTITY_DB_PASSWORD in .env}@db:5432/${POSTGRES_DB:-processmind}
@@ -105,6 +109,7 @@ services:
         condition: service_healthy
   web:
     build: ./apps/web
+    restart: unless-stopped
     ports:
       - "127.0.0.1:5173:80"
     depends_on:
