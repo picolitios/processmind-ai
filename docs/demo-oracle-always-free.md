@@ -1,19 +1,23 @@
 # Demonstração pública na Oracle Always Free
 
-Estado em 2026-10-19: **rede criada, VM e aplicação ainda não publicadas**.
+Estado em 2026-10-20: **rede criada, VM e aplicação ainda não publicadas**.
 Na conta Free Tier `victorxapn`, região São Paulo, a VCN
 `processmind-demo-vcn` e a subnet pública `processmind-demo-public` estão
 disponíveis. O gateway de internet e a rota `0.0.0.0/0` estão ativos. A lista
-de segurança admite 80/443 de qualquer origem e 22 somente do IPv4 atual do
+de segurança admite 80/443 de qualquer origem e 22 somente do IPv4 autorizado do
 operador. A Oracle recusou a VM A1 de 2 OCPU/12 GB e também a de 1 OCPU/8 GB
 por falta de capacidade no único domínio de disponibilidade exibido (`AD-1`).
+Em 2026-10-20, após autenticação MFA, a lista de instâncias seguia vazia;
+novas tentativas de A1 com 2 OCPU/12 GB e 1 OCPU/6 GB retornaram o mesmo erro.
 Nenhuma VM foi criada. Não use forma paga, crédito de avaliação ou upgrade
 para contornar essa limitação. A criação/alteração de recursos externos requer
 autorização específica do proprietário. Este guia
 mantém o limite obrigatório de R$ 0 e usa apenas dados sintéticos. Confirme no
 console Oracle que cada recurso mostra o selo **Always Free** e que a conta não
-foi atualizada para Pay As You Go. Capacidade ARM livre pode não existir na região
-escolhida. Não use créditos de avaliação para contornar esse limite.
+foi atualizada para Pay As You Go. O estimador da OCI pode mostrar o preço bruto
+do volume sem descontar a franquia Always Free; confirme que ele está na região
+principal e dentro da cota antes de criar. Capacidade ARM livre pode não existir
+na região escolhida. Não use créditos de avaliação para contornar esse limite.
 
 ## Compatibilidade e topologia
 
