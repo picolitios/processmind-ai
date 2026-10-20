@@ -3,6 +3,8 @@
 ProcessMind AI currently runs as a single-host Docker Compose installation.
 The [Oracle Always Free demo guide](demo-oracle-always-free.md) prepares a public
 TLS installation but has not been deployed or validated on a public VM. The
+[on-demand Quick Tunnel guide](demo-quick-tunnel.md) prepares an isolated local
+HTTPS demonstration while Oracle A1 capacity is unavailable. The default
 local installation has no public TLS endpoint, offsite backup schedule,
 high availability or production recovery objective. Do not expose its bound
 local ports as a customer service without designing and validating those
