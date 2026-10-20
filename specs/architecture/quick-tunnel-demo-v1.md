@@ -47,3 +47,6 @@ para avaliação com dados sintéticos, sem SLA ou promessa de URL estável.
 4. Os scripts de backup/restauração existentes podem ser usados com o mesmo
    ambiente e projeto isolado. Interromper o túnel não remove dados.
 5. CI existente permanece ativo; sem cobrança ou segredo versionado.
+
+A evidência local e pública de 2026-10-20 está em
+`specs/testing/quick-tunnel-demo-results.md`.
