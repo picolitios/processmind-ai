@@ -8,7 +8,7 @@ upgrade Pay As You Go ou recurso fora da franquia Always Free. O ambiente usa
 somente dados sintéticos e não possui SLA, RPO ou RTO de produção. A criação de
 conta, VM, DNS, segredos, regras de rede e a primeira publicação dependem de
 autorização específica do usuário. A automação versionada permanece inerte até
-que a variável protegida `DEMO_DEPLOY_ENABLED=true` seja configurada.
+que seu timer seja instalado após o primeiro bootstrap saudável.
 
 Render Free não é alvo de execução completa: a ausência de worker e de disco
 persistente gratuitos e o prazo do banco gratuito não atendem esta arquitetura.
@@ -21,8 +21,8 @@ por `DEMO_HOST` e deve resolver para o IP público antes de emitir certificado.
   o roteamento de identidade/API. Apenas 80/443 e SSH entram no firewall da VM.
 - PostgreSQL, RabbitMQ, API, identidade, workers, monitor e uploads permanecem
   no Compose. Volumes Docker persistem no disco da VM, inclusive certificados.
-- `.env` é local, privado e não versionado. CI/GitHub armazena apenas a chave SSH
-  de deploy, host, usuário e chave pública de host para uma conta sem root.
+- `.env` é local, privado e não versionado. A VM consulta a API pública do
+  GitHub sem token e não recebe uma chave de deploy pelo workflow.
 - `APP_ENV=demo` ativa cookie `Secure`; `WEB_ORIGIN` deve ser exatamente
   `https://<DEMO_HOST>`. Nunca usar credenciais padrão da `.env.example`.
 - Ollama é opcional e local à VM. A publicação inicial não depende de modelo;
@@ -30,9 +30,15 @@ por `DEMO_HOST` e deve resolver para o IP público antes de emitir certificado.
 
 ## Publicação
 
-O workflow de deploy observa CI concluído com sucesso em `main`, mas só executa
-com `DEMO_DEPLOY_ENABLED=true` em ambiente GitHub `demo` protegido. Executa no
-host um commit SHA da `main` validado. Antes de migrar, para escritores, drena
+Um timer local, instalado somente após bootstrap e autorização, consulta a API
+pública do GitHub por conexão de saída a cada dez minutos. Ele compara o SHA do
+último run de push bem-sucedido do workflow `CI` com o head remoto de `main` no
+repositório exato. Sem correspondência, não executa deploy. O verificador fica
+fora do checkout e executa como o usuário dedicado `processmind`, com acesso ao
+Docker; não recebe token do GitHub. O repositório público não recebe runner
+self-hosted persistente, conforme o risco descrito na
+[orientação do GitHub](https://docs.github.com/en/actions/reference/security/secure-use).
+O host executa o commit SHA validado. Antes de migrar, para escritores, drena
 auditoria e produz backup consistente. Falha no drain ou backup interrompe a
 publicação. Migrações Alembic e provisionamento de papéis ocorrem antes de
 reiniciar a aplicação. O preflight local e a verificação HTTPS externa precisam
@@ -49,8 +55,10 @@ protegida fora da VM para sobreviver à perda da instância.
    ARM64; apenas Caddy publica portas de rede externas.
 2. CI existente de API, web, broker, E2E, carga e restauração permanece ativo;
    uma construção ARM64 de API e web passa no CI.
-3. O deploy não inicia sem variável explícita, CI verde, ambiente protegido,
-   segredos SSH e host conhecido. Nenhum segredo de aplicação vai ao log/Git.
+3. O timer permanece desativado até instalação explícita após o bootstrap. O
+   deploy não inicia sem CI verde para o head exato da `main`; o serviço não
+   precisa abrir SSH para o GitHub nem guardar token de API. Nenhum segredo de
+   aplicação vai ao log/Git.
 4. A instalação nova aplica migrações versionadas, inicia serviços com volumes
    persistentes e passa `verify_deployment.py`; o bootstrap automatiza a
    sequência e recusa volumes existentes, segredos fracos ou checkout sujo.
@@ -61,7 +69,6 @@ protegida fora da VM para sobreviver à perda da instância.
 Em 2026-10-19, a rede Always Free de São Paulo foi criada, mas a OCI retornou
 `Out of capacity` para A1 2 OCPU/12 GB e 1 OCPU/8 GB em AD-1. Não há VM nem
 hostname público. Os itens 4–6 continuam pendentes de validação externa;
-testes locais/CI não os substituem. A regra SSH limitada ao operador também
-impede o runner hospedado pelo GitHub de executar o workflow atual. A escolha
-do transporte de deploy deve preservar o acesso restrito e o custo zero antes
-de ativar `DEMO_DEPLOY_ENABLED`.
+testes locais/CI não os substituem. A regra SSH permanece limitada ao operador.
+O timer de deploy só poderá ser instalado e exercido quando existir a VM
+Always Free.

@@ -66,22 +66,20 @@ proprietário; `onrender.com` não pertence a uma VM Oracle. Um subdomínio grat
    senha/`AUTH_HASH_KEY` com `openssl rand -hex 32`. Use só caracteres hex nas
    senhas embutidas em URLs SQLAlchemy. `chmod 600 .env`, mantenha o diretório
    de deploy e a chave SSH restritos. Nunca cole `.env` em issue, log ou PR.
-5. No GitHub, crie o ambiente `demo` com revisor obrigatório, os segredos
-   `DEMO_SSH_PRIVATE_KEY`, `DEMO_SSH_KNOWN_HOSTS`, `DEMO_SSH_HOST` e
-   `DEMO_SSH_USER`; capture `known_hosts` por canal verificado, não aceite
-   `ssh-keyscan` sem conferir fingerprint. Defina a variável de repositório
-   `DEMO_HOST`. Deixe `DEMO_DEPLOY_ENABLED` ausente durante o bootstrap e até a
-   autorização específica para a automação externa. O runner hospedado pelo
-   GitHub não consegue alcançar SSH se a regra 22 permanecer limitada ao IP
-   do operador. Antes de ativar o deploy automático, escolha e implemente um
-   transporte compatível com essa restrição (por exemplo, runner dedicado na
-   VM com conexão de saída), com revisão de segurança e atualização da spec.
-   Não amplie a origem SSH para `0.0.0.0/0` silenciosamente.
+5. Mantenha SSH/22 limitado ao IP do operador. O deploy automático usa um
+   timer na própria VM que consulta a API pública do GitHub e o ref remoto
+   `main`, ambos por conexões de saída. Ele só chama o deploy quando o commit
+   atual de `main` corresponde ao último run de push concluído com sucesso no
+   workflow `CI`. Não há runner self-hosted, token do GitHub nem segredo SSH
+   no workflow. A [orientação de segurança do GitHub](https://docs.github.com/en/actions/reference/security/secure-use)
+   desaconselha runners persistentes em repositórios públicos. O timer é
+   instalado somente após o primeiro bootstrap validado e autorizado.
 
 ## Instalação inicial
 
-Na VM, o bootstrap é explícito; o workflow automatiza atualizações de um
-ambiente já saudável. Execute no commit da `main` que passou CI:
+Na VM, o bootstrap é explícito; o timer automatiza atualizações de um
+ambiente já saudável. Conecte-se como `processmind` com a mesma chave e execute
+no commit da `main` que passou CI:
 
 ```bash
 cd /opt/processmind
@@ -99,22 +97,48 @@ Monitoramento básico: saúde dos containers, preflight, prontidão HTTPS e aler
 local do audit-monitor. Sem serviço externo pago, a observação e resposta são
 do operador; não há promessa de alerta 24/7.
 
+Após o primeiro fluxo sintético completo e a verificação de backup, conecte-se
+como `ubuntu` e ative o timer, usando o hostname público já validado:
+
+```bash
+sudo bash /opt/processmind/scripts/install_demo_poller.sh SEU_HOST
+systemctl status processmind-demo-deploy.timer
+journalctl -u processmind-demo-deploy.service -n 50 --no-pager
+```
+
+O instalador exige `.env` privado e pertencente a `processmind`; ele copia o
+verificador para fora do checkout e configura uma execução a cada dez minutos
+com pequeno atraso aleatório. A VM só precisa de saída HTTPS/443 para o GitHub.
+Se a API estiver indisponível ou o CI falhar, não há deploy. Pare o timer com
+`sudo systemctl disable --now processmind-demo-deploy.timer` antes de manutenção
+manual; nenhuma migração ou rollback ocorre só por parar o timer.
+
 ## Atualização automática após CI
 
-O workflow `deploy-demo.yml` reage somente ao sucesso do workflow `CI` para um
-commit da `main` do próprio repositório. Exige `DEMO_DEPLOY_ENABLED=true`,
-ambiente `demo` protegido e segredos SSH. A chave do servidor fica em
-`known_hosts`; SSH não aceita host novo silenciosamente. O usuário de deploy
-executa `scripts/deploy_demo.sh SHA HOST`: confere checkout, preflight, para
+`scripts/poll_demo_deploy.py` consulta no GitHub o último run de push em `main`
+e compara seu SHA ao head remoto de `main`. Só com conclusão `success` e
+repositório exato ele executa `scripts/deploy_demo.sh SHA HOST` como usuário
+`processmind`. O deploy confere checkout, preflight, para
 escritores, aguarda trabalho de auditoria, cria/verifica backup, constrói ARM64,
 aplica Alembic, provisiona papéis, sobe Compose, verifica saúde local e HTTPS.
-O workflow então roda o E2E Playwright na URL pública com dados sintéticos.
-Dados de teste podem acumular-se; a demonstração não aceita dados reais.
+Após cada publicação, execute o E2E Playwright na URL pública com dados
+sintéticos (veja o aceite abaixo). Dados de teste podem acumular-se; a
+demonstração não aceita dados reais.
 
-Se houver trabalho pendente, falha de backup ou de saúde, o workflow falha. O
+No computador de desenvolvimento com Node.js 24, valide pelo PowerShell:
+
+```powershell
+Set-Location apps/web
+npm ci
+npx playwright install chromium
+$env:E2E_BASE_URL = 'https://SEU_HOST'
+npm run test:e2e
+```
+
+Se houver trabalho pendente, falha de backup ou de saúde, o serviço falha. O
 script reinicia a versão anterior somente antes de iniciar a migração. Depois
 disso, não tenta downgrade nem restauração automática. A publicação inicial e
-a ativação da variável são ações externas e exigem autorização do usuário.
+a ativação do timer são ações externas e exigem autorização do usuário.
 
 ## Backup, restauração e rollback
 
@@ -144,6 +168,8 @@ produção. Nenhuma meta de RPO/RTO de produção foi estabelecida.
 - HTTPS válido e `/api/v1/health/ready` responde 200; portas administrativas
   não são acessíveis externamente.
 - CI, construção ARM64, preflight na VM e E2E público passam.
+- O timer instala e executa apenas um SHA de `main` com CI de push bem-sucedido;
+  o journal registra falhas e não contém segredos.
 - Fluxo sintético: cadastro, organização, importação, auditoria, achado, caso,
   atribuição, comentário, resolução e indicador; chats normal/temporário têm
   comportamento de fallback explícito se o modelo local não estiver ativo.
