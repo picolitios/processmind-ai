@@ -66,9 +66,11 @@ protegida fora da VM para sobreviver à perda da instância.
 6. Backup, restauração isolada e rollback estão documentados e são exercidos
    antes de chamar o ambiente de demonstração funcional.
 
-Em 2026-10-19, a rede Always Free de São Paulo foi criada, mas a OCI retornou
-`Out of capacity` para A1 2 OCPU/12 GB e 1 OCPU/8 GB em AD-1. Não há VM nem
-hostname público. Os itens 4–6 continuam pendentes de validação externa;
-testes locais/CI não os substituem. A regra SSH permanece limitada ao operador.
+Em 2026-10-20, a rede Always Free de São Paulo já estava criada e a OCI voltou
+a retornar `Out of capacity` para A1 2 OCPU/12 GB. A tentativa de 1 OCPU/6 GB
+recebeu o mesmo erro em AD-1; a de 1 OCPU/8 GB havia falhado anteriormente.
+Não há VM nem hostname público. Os itens 4–6 continuam pendentes de validação
+externa; testes locais/CI não os substituem. A regra SSH permanece limitada ao
+operador.
 O timer de deploy só poderá ser instalado e exercido quando existir a VM
 Always Free.
