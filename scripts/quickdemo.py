@@ -41,9 +41,8 @@ def write_env(values: dict[str, str]) -> None:
     """Atomically replace the env file with access limited to the current user."""
     temporary = ENV_FILE.with_suffix(".tmp")
     try:
-        with temporary.open("w", encoding="utf-8", newline="\n") as output:
-            for key, value in values.items():
-                output.write(f"{key}={value}\n")
+        # Restrict the empty file before any credential bytes are written.
+        temporary.touch(exist_ok=False)
         if os.name == "nt":
             # Windows files inherit directory ACLs unless explicitly restricted.
             identity = subprocess.run(
@@ -59,6 +58,9 @@ def write_env(values: dict[str, str]) -> None:
             )
         else:
             temporary.chmod(0o600)
+        with temporary.open("w", encoding="utf-8", newline="\n") as output:
+            for key, value in values.items():
+                output.write(f"{key}={value}\n")
         temporary.replace(ENV_FILE)
     finally:
         temporary.unlink(missing_ok=True)
