@@ -58,5 +58,10 @@ protegida fora da VM para sobreviver à perda da instância.
 6. Backup, restauração isolada e rollback estão documentados e são exercidos
    antes de chamar o ambiente de demonstração funcional.
 
-Até a autorização e existência da VM/hostname, os itens 4–6 são pendências de
-validação externa; testes locais/CI não os substituem.
+Em 2026-10-19, a rede Always Free de São Paulo foi criada, mas a OCI retornou
+`Out of capacity` para A1 2 OCPU/12 GB e 1 OCPU/8 GB em AD-1. Não há VM nem
+hostname público. Os itens 4–6 continuam pendentes de validação externa;
+testes locais/CI não os substituem. A regra SSH limitada ao operador também
+impede o runner hospedado pelo GitHub de executar o workflow atual. A escolha
+do transporte de deploy deve preservar o acesso restrito e o custo zero antes
+de ativar `DEMO_DEPLOY_ENABLED`.

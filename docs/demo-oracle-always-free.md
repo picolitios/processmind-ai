@@ -1,7 +1,15 @@
 # Demonstração pública na Oracle Always Free
 
-Estado: **preparada no repositório, ainda não publicada**. A criação/alteração de
-recursos externos requer autorização específica do proprietário. Este guia
+Estado em 2026-10-19: **rede criada, VM e aplicação ainda não publicadas**.
+Na conta Free Tier `victorxapn`, região São Paulo, a VCN
+`processmind-demo-vcn` e a subnet pública `processmind-demo-public` estão
+disponíveis. O gateway de internet e a rota `0.0.0.0/0` estão ativos. A lista
+de segurança admite 80/443 de qualquer origem e 22 somente do IPv4 atual do
+operador. A Oracle recusou a VM A1 de 2 OCPU/12 GB e também a de 1 OCPU/8 GB
+por falta de capacidade no único domínio de disponibilidade exibido (`AD-1`).
+Nenhuma VM foi criada. Não use forma paga, crédito de avaliação ou upgrade
+para contornar essa limitação. A criação/alteração de recursos externos requer
+autorização específica do proprietário. Este guia
 mantém o limite obrigatório de R$ 0 e usa apenas dados sintéticos. Confirme no
 console Oracle que cada recurso mostra o selo **Always Free** e que a conta não
 foi atualizada para Pay As You Go. Capacidade ARM livre pode não existir na região
@@ -31,12 +39,28 @@ proprietário; `onrender.com` não pertence a uma VM Oracle. Um subdomínio grat
    marcados Always Free, disco persistente dentro da cota, IP público e regras
    de entrada TCP 80/443. Limite SSH ao operador sempre que possível. Configure
    atualizações de segurança e um usuário de deploy sem root, com Docker e Git.
+   Quando houver capacidade A1, revise a mesma rede, o selo Always Free, o
+   disco e as regras antes de criar a VM.
 2. Hostname DNS com A/AAAA correto. Caddy precisa de entrada 80/443 para emitir
    e renovar HTTPS. Verifique a resolução e a porta antes de iniciar.
-3. Clone público em `/opt/processmind` sob o usuário de deploy. Instale Docker
-   Engine com plugin Compose, Python 3 e Git. Acesso ao socket Docker equivale
+3. Prepare uma VM Ubuntu 24.04 ARM64 com o script versionado abaixo. Ele
+   instala Docker Engine e o plugin Compose do repositório oficial, Python 3 e
+   Git, ativa atualizações de segurança, cria o usuário `processmind` sem sudo,
+   instala uma chave pública Ed25519 e clona a `main` em `/opt/processmind`.
+   Acesso ao socket Docker equivale
    a privilégios administrativos na VM: dedique essa conta ao deploy e proteja
-   sua chave SSH. Confirme imagens ARM64 no CI.
+   sua chave SSH. Confirme imagens ARM64 no CI. Transfira somente o script e a
+   chave **pública**, nunca a privada; ajuste o IPv4 abaixo ao IP real da VM:
+
+   ```bash
+   scp -i ~/.ssh/processmind_oci_demo_ed25519 scripts/provision_demo_host.sh ~/.ssh/processmind_oci_demo_ed25519.pub ubuntu@IP_DA_VM:/home/ubuntu/
+   ssh -i ~/.ssh/processmind_oci_demo_ed25519 ubuntu@IP_DA_VM 'sudo bash /home/ubuntu/provision_demo_host.sh /home/ubuntu/processmind_oci_demo_ed25519.pub'
+   ```
+
+   O script recusa outro sistema/arquitetura, chave inválida e checkout já
+   existente com origem diferente. Sua repetição preserva `.env`, dados e
+   commit instalado. Confira a fingerprint SSH da VM por canal verificado
+   antes da primeira conexão; não aceite uma chave desconhecida às cegas.
 4. Copie `infra/demo/env.example` para `/opt/processmind/.env`. Preencha
    `DEMO_HOST` e `WEB_ORIGIN=https://<mesmo-host>`. Gere separadamente cada
    senha/`AUTH_HASH_KEY` com `openssl rand -hex 32`. Use só caracteres hex nas
@@ -47,7 +71,12 @@ proprietário; `onrender.com` não pertence a uma VM Oracle. Um subdomínio grat
    `DEMO_SSH_USER`; capture `known_hosts` por canal verificado, não aceite
    `ssh-keyscan` sem conferir fingerprint. Defina a variável de repositório
    `DEMO_HOST`. Deixe `DEMO_DEPLOY_ENABLED` ausente durante o bootstrap e até a
-   autorização específica para a automação externa.
+   autorização específica para a automação externa. O runner hospedado pelo
+   GitHub não consegue alcançar SSH se a regra 22 permanecer limitada ao IP
+   do operador. Antes de ativar o deploy automático, escolha e implemente um
+   transporte compatível com essa restrição (por exemplo, runner dedicado na
+   VM com conexão de saída), com revisão de segurança e atualização da spec.
+   Não amplie a origem SSH para `0.0.0.0/0` silenciosamente.
 
 ## Instalação inicial
 
