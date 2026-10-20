@@ -1,0 +1,13 @@
+# Keep the public tunnel limited to Nginx and isolate every persistent volume.
+services:
+  db:
+    ports: !override []
+  rabbitmq:
+    ports: !override []
+  api:
+    ports: !override []
+  identity:
+    ports: !override []
+  web:
+    ports: !override
+      - "127.0.0.1:5174:80"

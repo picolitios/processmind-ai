@@ -2,6 +2,11 @@
 
 ## Demonstração externa
 
+`specs/architecture/quick-tunnel-demo-v1.md` define a demonstração pública
+sob demanda em Docker local com URL HTTPS temporária e dados persistidos em
+volumes isolados. A Oracle Always Free permanece a opção de hospedagem
+contínua quando houver capacidade; o Quick Tunnel não substitui esse alvo.
+
 `specs/architecture/oci-demo-deployment-v1.md` define a preparação do Compose
 para Oracle Always Free com limite R$ 0. O deploy externo permanece desativado
 até autorização específica e validação de VM/hostname/segredos; o guia
