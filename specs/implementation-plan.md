@@ -19,6 +19,10 @@ Os primeiros recortes da Fase 2 estão em `specs/architecture/identity-boundary-
 
 A primeira entrega funcional da V2 é o copiloto conversacional definido em `specs/architecture/copilot-v2.md`. Backend, contrato, interface, guia e E2E dos modos normal e temporário compõem a mesma entrega; o modelo local precisa estar disponível para gerar respostas em vez da limitação explícita.
 
+`specs/architecture/copilot-local-model-demo-v1.md` define a ativação opt-in
+do Ollama local na demonstração sob demanda. O aceite exige resposta real
+com citações verificadas nos dois modos de chat.
+
 `specs/architecture/import-dedup-lock-v1.md` removeu o bloqueio de deduplicação de importações da linha de organização sem alterar a semântica de concorrência. O snapshot de configuração da auditoria e as FKs entre domínios foram migrados nos incrementos posteriores descritos abaixo.
 
 `specs/architecture/audit-configuration-ownership-v1.md` definiu o primeiro incremento da migração do snapshot: tabela própria, backfill e leitura controlada com rollback. A gravação cruzada transitória e as FKs foram tratadas nos incrementos seguintes, permitindo o isolamento de credenciais no Compose.
