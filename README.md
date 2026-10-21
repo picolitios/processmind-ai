@@ -18,6 +18,24 @@ The MVP used one transaction and a PostgreSQL job worker to preserve correctness
 
 nginx in the web container is the client entry point. FastAPI currently owns authentication, authorization, CORS and correlation IDs. Domain extraction will follow measured needs and a data ownership migration.
 
+## Public demo with a local model
+
+The current zero-cost demo runs on the operator's computer through an ephemeral
+Cloudflare Quick Tunnel. It uses synthetic data and local Ollama `gemma3:4b`;
+the Docker `model-worker` reaches Ollama through `host.docker.internal`. No paid
+inference API or Oracle resource is required. The HTTPS address changes when
+the tunnel restarts and is available only while the computer, Docker, Ollama
+and tunnel remain running. GitHub stores the source code; it does not host this
+running application.
+
+Follow the [public demo guide](docs/demo-quick-tunnel.md) to prepare, start,
+enable or disable the local model, and run the public E2E. The
+[model validation record](specs/testing/copilot-local-model-demo-results.md)
+documents real responses with evidence citations in both normal and temporary
+chats. The deployment configuration for a future always-free VM remains in
+[the Oracle guide](docs/demo-oracle-always-free.md); the current public demo
+does not depend on that VM.
+
 ## Run locally
 
 Requirements: Docker Desktop with Compose. Python 3.12 and Node.js 24 are only needed for host-side development and tests. Docker services use free local infrastructure; Ollama is optional.
