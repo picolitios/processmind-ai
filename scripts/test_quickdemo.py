@@ -54,6 +54,37 @@ class QuickDemoTests(unittest.TestCase):
         self.assertEqual(len(environment["COMPOSE_FILE"].split(os.pathsep)), 2)
         self.assertIn("--env-file", quickdemo.compose_args("config", "--quiet"))
 
+    def test_model_activation_requires_local_worker_probe(self) -> None:
+        """A missing model cannot silently switch the demo to another endpoint."""
+        values = {"OLLAMA_BASE_URL": quickdemo.FALLBACK_MODEL_URL}
+        with (
+            patch.object(quickdemo, "prepare", return_value=values),
+            patch.object(quickdemo, "model_available_in_worker", return_value=False),
+            patch.object(quickdemo, "write_env") as writer,
+            patch.object(quickdemo, "run_compose") as compose,
+            self.assertRaisesRegex(RuntimeError, "missing or unreachable"),
+        ):
+            quickdemo.configure_model(True)
+        writer.assert_not_called()
+        compose.assert_not_called()
+
+    def test_model_activation_changes_only_private_demo_worker(self) -> None:
+        """Keep the project and credentials while recreating only model-worker."""
+        values = {"COMPOSE_PROJECT_NAME": quickdemo.PROJECT}
+        with (
+            patch.object(quickdemo, "prepare", return_value=values),
+            patch.object(quickdemo, "model_available_in_worker", return_value=True),
+            patch.object(quickdemo, "write_env") as writer,
+            patch.object(quickdemo, "run_compose") as compose,
+        ):
+            quickdemo.configure_model(True)
+        self.assertEqual(values["OLLAMA_BASE_URL"], quickdemo.LOCAL_MODEL_URL)
+        self.assertEqual(values["OLLAMA_TIMEOUT_SECONDS"], "120")
+        writer.assert_called_once_with(values)
+        compose.assert_called_once_with(
+            "up", "-d", "--no-build", "--force-recreate", "--wait", "model-worker"
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

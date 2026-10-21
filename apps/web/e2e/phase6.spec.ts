@@ -4,6 +4,8 @@ import { join } from "node:path";
 import { assertAccessible } from "./assertAccessible";
 
 test("cadastro até resolução de um caso", async ({ page }) => {
+  const liveModel = process.env.PROCESSMIND_REQUIRE_MODEL === "1";
+  test.setTimeout(liveModel ? 360_000 : 120_000);
   const unique = Date.now().toString(36);
   await page.goto("/");
   await page.getByRole("button", { name: "Criar conta" }).click();
@@ -91,11 +93,16 @@ test("cadastro até resolução de um caso", async ({ page }) => {
   await expect(auditCopilot.getByText("Quais evidências devo conferir?")).toBeVisible();
   const firstTurn = auditCopilot.locator(".copilot-turn").first();
   await expect(firstTurn.getByText("Resposta em processamento…")).toHaveCount(0, {
-    timeout: 60_000,
+    timeout: liveModel ? 120_000 : 60_000,
   });
   await expect(firstTurn.locator("p").filter({
     hasText: /Copiloto:|Ollama indisponível|Dados insuficientes|Resposta da IA inválida/,
   })).toBeVisible();
+  if (liveModel) {
+    await expect(firstTurn.getByText("Copiloto:")).toBeVisible();
+    await expect(firstTurn.getByRole("list", { name: "Citações de evidências" })
+      .getByRole("link").first()).toBeVisible();
+  }
   await page.reload();
   await expect(page).toHaveURL(auditUrl);
   await auditCopilot.getByRole("button", { name: /Ativo/ }).click();
@@ -113,6 +120,12 @@ test("cadastro até resolução de um caso", async ({ page }) => {
   await findingCopilot.getByLabel("Sua pergunta").fill("O que verificar neste achado?");
   await findingCopilot.getByRole("button", { name: "Enviar pergunta" }).click();
   await expect(findingCopilot.getByText("O que verificar neste achado?")).toBeVisible();
+  if (liveModel) {
+    const temporaryTurn = findingCopilot.locator(".copilot-turn").first();
+    await expect(temporaryTurn.getByText("Copiloto:")).toBeVisible({ timeout: 120_000 });
+    await expect(temporaryTurn.getByRole("list", { name: "Citações de evidências" })
+      .getByRole("link").first()).toBeVisible();
+  }
   await page.reload();
   await expect(findingCopilot.getByText("Nenhum chat salvo para este alvo.")).toBeVisible();
   await expect(findingCopilot.getByRole("heading", { name: "Chat temporário" })).toHaveCount(0);

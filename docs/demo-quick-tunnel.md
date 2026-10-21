@@ -53,6 +53,48 @@ local nem adicione encaminhamento de portas. `APP_ENV=demo` mantém os cookies
 `Secure`. O modelo local é opcional; o endpoint de Ollama no demo aponta a um
 serviço indisponível para acionar o fallback explícito, sem API paga.
 
+## Ativar o copiloto com modelo local
+
+No Windows com Docker Desktop, instale o
+[Ollama oficial](https://ollama.com/download/windows) no computador do
+operador, inicie `ollama serve` e baixe o modelo gratuito já previsto no
+projeto. Mantenha o servidor ligado somente em `127.0.0.1:11434`, sem abrir a
+porta na rede local ou criar conta de nuvem. Na raiz do projeto:
+
+```powershell
+ollama pull gemma3:4b
+python scripts/quickdemo.py enable-model
+```
+
+`enable-model` consulta o catálogo do Ollama **a partir do container do
+model-worker** e só aceita o modelo local `gemma3:4b`. Após a verificação,
+atualiza o `.env.quickdemo` privado e recria apenas `model-worker`, com timeout
+de 120 segundos para máquinas que executam parte do modelo na CPU. Banco,
+uploads, outros serviços e URL pública continuam intactos. O modelo pode usar
+vários gigabytes de disco e memória; o download não contém dados da empresa.
+O caminho de host `host.docker.internal` desta ativação foi validado no Docker
+Desktop; em Linux, mantenha o fallback até haver uma configuração local segura
+e validada para acesso ao host.
+
+Para exigir resposta real com citações nos chats normal e temporário, rode o
+E2E na URL pública com a variável adicional:
+
+```powershell
+$env:E2E_BASE_URL = 'https://URL_IMPRESSA_PELO_SCRIPT'
+$env:PROCESSMIND_REQUIRE_MODEL = '1'
+Set-Location apps/web
+npm run test:e2e
+```
+
+O teste normal de CI continua aceitando o fallback porque não baixa o modelo.
+Se Ollama não estiver disponível ou o modelo produzir resposta inválida, o
+copiloto mostra uma limitação; a auditoria determinística continua funcionando.
+Para voltar deliberadamente ao fallback sem apagar conversas:
+
+```powershell
+python scripts/quickdemo.py disable-model
+```
+
 ## Aceite e monitoramento
 
 Com `serve` em execução, valide o fluxo sintético completo em outro terminal:

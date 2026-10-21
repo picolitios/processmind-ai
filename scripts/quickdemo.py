@@ -20,6 +20,9 @@ ROOT = Path(__file__).resolve().parent.parent
 ENV_FILE = ROOT / ".env.quickdemo"
 PROJECT = "processmind_quickdemo"
 WEB_PORT = 5174
+LOCAL_MODEL_URL = "http://host.docker.internal:11434"
+FALLBACK_MODEL_URL = "http://127.0.0.1:1"
+LOCAL_MODEL = "gemma3:4b"
 TUNNEL_URL = re.compile(r"https://[a-z0-9-]+\.trycloudflare\.com(?![.\w-])")
 SECRET_KEYS = (
     "POSTGRES_PASSWORD", "IDENTITY_DB_PASSWORD", "BUSINESS_DB_PASSWORD",
@@ -76,7 +79,9 @@ def prepare() -> dict[str, str]:
             "POSTGRES_DB": "processmind",
             "POSTGRES_USER": "processmind",
             "RABBITMQ_USER": "processmind",
-            "OLLAMA_BASE_URL": "http://127.0.0.1:1",
+            "OLLAMA_BASE_URL": FALLBACK_MODEL_URL,
+            "OLLAMA_MODEL": LOCAL_MODEL,
+            "OLLAMA_TIMEOUT_SECONDS": "120",
         }
         values.update({key: secrets.token_hex(32) for key in SECRET_KEYS})
         write_env(values)
@@ -84,7 +89,9 @@ def prepare() -> dict[str, str]:
     if (
         values.get("COMPOSE_PROJECT_NAME") != PROJECT
         or values.get("APP_ENV") != "demo"
-        or values.get("OLLAMA_BASE_URL") != "http://127.0.0.1:1"
+        or values.get("OLLAMA_BASE_URL") not in {FALLBACK_MODEL_URL, LOCAL_MODEL_URL}
+        or values.get("OLLAMA_MODEL", LOCAL_MODEL) != LOCAL_MODEL
+        or values.get("OLLAMA_TIMEOUT_SECONDS", "120") != "120"
         or any(not re.fullmatch(r"[0-9a-f]{64}", values.get(key, "")) for key in SECRET_KEYS)
         or len({values.get(key) for key in SECRET_KEYS}) != len(SECRET_KEYS)
     ):
@@ -180,6 +187,33 @@ def check_public_health(origin: str) -> None:
             raise RuntimeError("Public readiness endpoint failed")
 
 
+def model_available_in_worker() -> bool:
+    """Check the local Ollama model from the worker network without logging tags."""
+    script = (
+        "import json,urllib.request; "
+        f"data=json.load(urllib.request.urlopen('{LOCAL_MODEL_URL}/api/tags',timeout=10)); "
+        f"assert any(item.get('name')=='{LOCAL_MODEL}' for item in data.get('models',[]))"
+    )
+    result = subprocess.run(
+        compose_args("run", "--rm", "--no-deps", "model-worker", "python", "-c", script),
+        cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False,
+    )
+    return result.returncode == 0
+
+
+def configure_model(enabled: bool) -> None:
+    """Switch only the demo model worker between local inference and fallback."""
+    values = prepare()
+    if enabled and not model_available_in_worker():
+        raise RuntimeError("Local model is missing or unreachable from model-worker")
+    values["OLLAMA_BASE_URL"] = LOCAL_MODEL_URL if enabled else FALLBACK_MODEL_URL
+    values["OLLAMA_MODEL"] = LOCAL_MODEL
+    values["OLLAMA_TIMEOUT_SECONDS"] = "120"
+    write_env(values)
+    run_compose("up", "-d", "--no-build", "--force-recreate", "--wait", "model-worker")
+    print("Modelo local ativo." if enabled else "Fallback do copiloto ativo.")
+
+
 def serve() -> None:
     """Expose the isolated stack while this process remains in the foreground."""
     binary = os.environ.get("CLOUDFLARED_BIN", "cloudflared")
@@ -210,15 +244,17 @@ def serve() -> None:
 def main() -> int:
     """Offer a safe preparation command and an explicit public serve command."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("prepare", "serve"))
+    parser.add_argument("action", choices=("prepare", "serve", "enable-model", "disable-model"))
     args = parser.parse_args()
     try:
         if args.action == "prepare":
             prepare()
             run_compose("config", "--quiet")
             print("Ambiente isolado preparado; nenhum túnel foi iniciado.")
-        else:
+        elif args.action == "serve":
             serve()
+        else:
+            configure_model(args.action == "enable-model")
     except KeyboardInterrupt:
         print("Túnel encerrado; os dados locais foram preservados.")
     except (OSError, RuntimeError, subprocess.CalledProcessError, urllib.error.URLError) as error:
