@@ -198,6 +198,138 @@ def test_copilot_memory_is_tenant_scoped_and_temporary_isolated(
         assert outsider.get(f"{base}/copilot/conversations/{first['id']}").status_code == 404
 
 
+def test_organization_agent_uses_only_its_completed_audit_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The company chat spans audits but cannot cite another tenant's evidence."""
+    with TestClient(app) as owner, TestClient(app) as outsider:
+        csrf = login(owner, create_user(owner, "agent-owner"))
+        org_id = create_org(owner, csrf, "agent-org")
+        user_id = owner.get("/api/v1/auth/session").json()["user"]["id"]
+        _, _, first_evidence = seed_targets(org_id, user_id)
+        _, _, second_evidence = seed_targets(org_id, user_id)
+        failed_run_id, _, failed_evidence = seed_targets(org_id, user_id)
+        with Session(make_engine()) as db:
+            failed_run = db.get(AuditRun, uuid.UUID(failed_run_id))
+            assert failed_run is not None
+            failed_run.status = "failed"
+            db.commit()
+        base = f"/api/v1/organizations/{org_id}/ai"
+        created = owner.post(
+            f"{base}/copilot/conversations", headers=csrf_headers(csrf),
+            json={"scope": "organization", "mode": "normal"},
+        )
+        assert created.status_code == 201, created.text
+        chat = created.json()
+        assert chat["scope"] == "organization"
+        assert chat["finding_id"] is None and chat["audit_id"] is None
+        listed = owner.get(f"{base}/copilot/conversations", params={"scope": "organization"})
+        assert [item["id"] for item in listed.json()["items"]] == [chat["id"]]
+        question = ask(owner, base, csrf, chat["id"], "Quais compras duplicadas revisar?")
+        with Session(make_engine()) as db:
+            conversation = db.get(CopilotConversation, uuid.UUID(chat["id"]))
+            turn = db.get(CopilotTurn, uuid.UUID(question["question_id"]))
+            assert conversation is not None and turn is not None
+            context, allowed, _ = build_copilot_context(db, conversation, turn)
+        assert len(context["target"]["findings"]) == 4
+        assert {uuid.UUID(value) for value in first_evidence + second_evidence} <= allowed
+        assert not {uuid.UUID(value) for value in failed_evidence} & allowed
+        finish_question(monkeypatch, question, second_evidence[0])
+        answer = owner.get(f"{base}/copilot/questions/{question['question_id']}")
+        assert answer.json()["status"] == "succeeded"
+        assert answer.json()["citations"][0]["evidence_id"] == second_evidence[0]
+
+        followup_chat = owner.post(
+            f"{base}/copilot/conversations", headers=csrf_headers(csrf),
+            json={"scope": "organization", "mode": "normal"},
+        ).json()
+        followup = ask(owner, base, csrf, followup_chat["id"], "O que o agente já explicou?")
+        with Session(make_engine()) as db:
+            conversation = db.get(CopilotConversation, uuid.UUID(followup_chat["id"]))
+            turn = db.get(CopilotTurn, uuid.UUID(followup["question_id"]))
+            assert conversation is not None and turn is not None
+            context, allowed, _ = build_copilot_context(db, conversation, turn)
+        assert context["organization_memory"][0]["answer"] == "Verifique o documento citado."
+        assert uuid.UUID(second_evidence[0]) in allowed
+        finish_question(monkeypatch, followup, second_evidence[0])
+
+        temporary = owner.post(
+            f"{base}/copilot/conversations", headers=csrf_headers(csrf),
+            json={"scope": "organization", "mode": "temporary"},
+        ).json()
+        temp_question = ask(owner, base, csrf, temporary["id"], "Sem memória externa?")
+        with Session(make_engine()) as db:
+            conversation = db.get(CopilotConversation, uuid.UUID(temporary["id"]))
+            turn = db.get(CopilotTurn, uuid.UUID(temp_question["question_id"]))
+            assert conversation is not None and turn is not None
+            context, _, _ = build_copilot_context(db, conversation, turn)
+        assert context["organization_memory"] == []
+        finish_question(monkeypatch, temp_question, second_evidence[0])
+        saved = owner.get(f"{base}/copilot/conversations", params={"scope": "organization"})
+        assert {item["id"] for item in saved.json()["items"]} == {chat["id"], followup_chat["id"]}
+
+        outsider_csrf = login(outsider, create_user(outsider, "agent-outsider"))
+        other_org = create_org(outsider, outsider_csrf, "agent-other")
+        other_user_id = outsider.get("/api/v1/auth/session").json()["user"]["id"]
+        _, _, other_evidence = seed_targets(other_org, other_user_id)
+        outsider_list = outsider.get(
+            f"{base}/copilot/conversations", params={"scope": "organization"}
+        )
+        assert outsider_list.status_code == 404
+        assert outsider.get(f"{base}/copilot/conversations/{chat['id']}").status_code == 404
+        with Session(make_engine()) as db:
+            conversation = db.get(CopilotConversation, uuid.UUID(chat["id"]))
+            turn = db.get(CopilotTurn, uuid.UUID(question["question_id"]))
+            assert conversation is not None and turn is not None
+            _, allowed, _ = build_copilot_context(db, conversation, turn)
+        assert uuid.UUID(other_evidence[0]) not in allowed
+
+        invalid = owner.post(
+            f"{base}/copilot/conversations", headers=csrf_headers(csrf),
+            json={"scope": "organization", "finding_id": str(uuid.uuid4()), "mode": "normal"},
+        )
+        assert invalid.status_code == 422
+
+
+def test_organization_agent_limits_context_and_denies_viewer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Large tenants receive a bounded context; read-only members cannot start a chat."""
+    with TestClient(app) as owner, TestClient(app) as viewer:
+        csrf = login(owner, create_user(owner, "bounded-agent-owner"))
+        viewer_email = create_user(viewer, "bounded-agent-viewer")
+        viewer_csrf = login(viewer, viewer_email)
+        org_id = create_org(owner, csrf, "bounded-agent-org")
+        user_id = owner.get("/api/v1/auth/session").json()["user"]["id"]
+        for _ in range(11):
+            seed_targets(org_id, user_id)
+        created = owner.post(
+            f"/api/v1/organizations/{org_id}/users", headers=csrf_headers(csrf),
+            json={"email": viewer_email, "role": "viewer"},
+        )
+        assert created.status_code == 201, created.text
+        base = f"/api/v1/organizations/{org_id}/ai"
+        denied = viewer.post(
+            f"{base}/copilot/conversations", headers=csrf_headers(viewer_csrf),
+            json={"scope": "organization", "mode": "temporary"},
+        )
+        assert denied.status_code == 403
+        chat = owner.post(
+            f"{base}/copilot/conversations", headers=csrf_headers(csrf),
+            json={"scope": "organization", "mode": "temporary"},
+        ).json()
+        question = ask(owner, base, csrf, chat["id"], "Quais compras duplicadas?")
+        with Session(make_engine()) as db:
+            conversation = db.get(CopilotConversation, uuid.UUID(chat["id"]))
+            turn = db.get(CopilotTurn, uuid.UUID(question["question_id"]))
+            assert conversation is not None and turn is not None
+            context, allowed, partial = build_copilot_context(db, conversation, turn)
+        assert len(context["target"]["findings"]) == 20
+        assert len(allowed) == 20
+        assert partial is True
+        finish_question(monkeypatch, question, str(next(iter(allowed))))
+
+
 def test_policy_approval_idempotency_and_expiry(monkeypatch: pytest.MonkeyPatch) -> None:
     with TestClient(app) as owner, TestClient(app) as analyst:
         owner_csrf = login(owner, create_user(owner, "copilot-manager"))

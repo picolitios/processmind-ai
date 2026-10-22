@@ -37,7 +37,7 @@ python scripts/quickdemo.py serve
 ```
 
 O comando abre o túnel, define `WEB_ORIGIN` para a nova URL HTTPS, constrói as
-imagens, inicia banco e broker, aplica migrações e provisiona papéis **somente
+imagens, inclusive `db-admin` do perfil `tools`, inicia banco e broker, aplica migrações e provisiona papéis **somente
 em volume novo**, sobe os 11 serviços, executa o gate local e valida readiness
 na URL pública. Ele imprime a URL após passar esses checks. Se o volume já
 existir, o script não migra automaticamente; um upgrade segue o procedimento

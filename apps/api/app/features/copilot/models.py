@@ -66,7 +66,7 @@ class CopilotConversation(Base):
         Index("ix_copilot_conversation_author", "organization_id", "author_id", "created_at", "id"),
         Index("ix_copilot_conversation_pending", "organization_id", "status", "created_at", "id"),
         Index("ix_copilot_conversation_expiry", "expires_at"),
-        CheckConstraint("(finding_id IS NULL) <> (run_id IS NULL)", name="ck_copilot_target"),
+        CheckConstraint("finding_id IS NULL OR run_id IS NULL", name="ck_copilot_target"),
         CheckConstraint("mode IN ('normal','temporary')", name="ck_copilot_mode"),
         CheckConstraint("status IN ('active','pending','rejected')", name="ck_copilot_status"),
         CheckConstraint("mode = 'temporary' OR expires_at IS NULL", name="ck_copilot_expiry"),

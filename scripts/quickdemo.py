@@ -139,7 +139,8 @@ def start_stack(values: dict[str, str]) -> None:
     """Build and initialize only a new demo database, then gate all services."""
     run_compose("config", "--quiet")
     prior_database = existing_database()
-    run_compose("build")
+    # The migration runner is in the tools profile and must match the application image.
+    run_compose("--profile", "tools", "build")
     run_compose("up", "-d", "--wait", "db", "rabbitmq")
     if not prior_database:
         run_compose("run", "--rm", "--no-deps", "db-admin", "alembic", "upgrade", "head")

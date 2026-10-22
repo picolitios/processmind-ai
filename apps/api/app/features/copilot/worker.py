@@ -12,9 +12,10 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.features.ai.worker import OllamaUnavailable, call_structured
 from app.features.audit.ai_context import build_ai_context
-from app.features.audit.models import AuditFinding, FindingEvidence
+from app.features.audit.models import AuditFinding, AuditRun, FindingEvidence
 from app.features.audit_trail.events import append_business_event
 from app.features.copilot.models import CopilotConversation, CopilotPolicy, CopilotTurn
+from app.features.copilot.organization_context import build_organization_context
 from app.features.copilot.schemas import CopilotResult
 from app.features.ingestion.models import Job
 
@@ -34,12 +35,15 @@ def _serialized(value: object) -> bytes:
 
 
 def _target_context(
-    db: Session, conversation: CopilotConversation,
+    db: Session, conversation: CopilotConversation, question: str,
 ) -> tuple[dict[str, Any], set[uuid.UUID], bool]:
     """Retain only evidence actually present under the total target byte cap."""
-    source, _, partial = build_ai_context(
-        db, conversation.organization_id, conversation.finding_id, conversation.run_id
-    )
+    if conversation.finding_id is None and conversation.run_id is None:
+        source, _, partial = build_organization_context(db, conversation.organization_id, question)
+    else:
+        source, _, partial = build_ai_context(
+            db, conversation.organization_id, conversation.finding_id, conversation.run_id
+        )
     findings: list[dict[str, Any]] = []
     allowed: set[uuid.UUID] = set()
     for finding in source.get("findings", []):
@@ -59,7 +63,7 @@ def build_copilot_context(
     db: Session, conversation: CopilotConversation, turn: CopilotTurn,
 ) -> tuple[dict[str, Any], set[uuid.UUID], bool]:
     """Bound current history and organization memory, rechecking evidence tenants."""
-    target, allowed, partial = _target_context(db, conversation)
+    target, allowed, partial = _target_context(db, conversation, turn.question)
     own = db.scalars(select(CopilotTurn).where(
         CopilotTurn.organization_id == conversation.organization_id,
         CopilotTurn.conversation_id == conversation.id,
@@ -112,9 +116,15 @@ def build_copilot_context(
                         (AuditFinding.organization_id == FindingEvidence.organization_id)
                         & (AuditFinding.id == FindingEvidence.finding_id),
                     )
+                    .join(
+                        AuditRun,
+                        (AuditRun.organization_id == AuditFinding.organization_id)
+                        & (AuditRun.id == AuditFinding.run_id),
+                    )
                     .where(
                         FindingEvidence.organization_id == conversation.organization_id,
                         FindingEvidence.id.in_(candidate_ids),
+                        AuditRun.status == "succeeded",
                     )
                 )
             } if candidate_ids else {}
@@ -122,11 +132,10 @@ def build_copilot_context(
                 ids = [uuid.UUID(value) for value in item.evidence_ids]
                 if not ids or any(
                     value not in evidence
-                    or (
-                        evidence[value][0].finding_id != source_finding_id
-                        if source_finding_id is not None
-                        else evidence[value][1] != source_run_id
-                    )
+                    or (source_finding_id is not None
+                        and evidence[value][0].finding_id != source_finding_id)
+                    or (source_run_id is not None
+                        and evidence[value][1] != source_run_id)
                     for value in ids
                 ):
                     continue

@@ -17,6 +17,12 @@ O detalhe do caso mostra atribuição, comentários e histórico. A opção de e
 
 Nos detalhes de um **achado** ou de uma **auditoria concluída**, Owner, Admin e Analyst podem abrir um chat pelo painel **Copiloto conversacional**. Escolha o tipo antes de selecionar **Novo chat**:
 
+Em **Agente da empresa**, no menu lateral, os mesmos papéis podem criar um chat
+consultivo que reúne achados e evidências de auditorias concluídas da organização
+ativa. Cada pergunta seleciona um contexto limitado e mostra citações; o agente
+não executa ações nem consulta compras brutas ou casos. Perguntas sobre dados
+fora do contexto recuperado podem receber uma limitação. Viewer não inicia chats.
+
 - **Normal:** perguntas e respostas ficam no histórico da organização. Abra um item em **Meus chats salvos** para continuar após recarregar a página. Outros usuários não leem sua transcrição, mas turnos de chats normais ativos da mesma organização podem compor a memória compartilhada do copiloto. Excluir o chat remove seus turnos dessa memória.
 - **Temporário:** usa as evidências do alvo e as perguntas anteriores do próprio chat. Não usa outros chats nem entra na memória compartilhada. O painel não o restaura após recarregar; a transcrição transitória expira após uma hora sem atividade.
 

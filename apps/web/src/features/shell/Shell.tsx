@@ -9,6 +9,7 @@ const nav = [
   ["audits", "Auditorias", "◎"],
   ["findings", "Alertas", "◇"],
   ["cases", "Casos", "▣"],
+  ["agent", "Agente da empresa", "✦"],
   ["settings", "Configurações", "⚙"],
 ];
 export function Shell() {
@@ -54,7 +55,7 @@ export function Shell() {
         <nav aria-label="Principal">
           <p className="nav-heading">GERENCIAMENTO</p>
           {organizationId &&
-            nav.map(([path, label, icon]) => (
+            nav.filter(([path]) => path !== "agent" || canWrite(role)).map(([path, label, icon]) => (
               <NavLink
                 key={path}
                 to={`/organizations/${organizationId}/${path}`}

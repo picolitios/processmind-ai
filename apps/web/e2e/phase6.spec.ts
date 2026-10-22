@@ -5,7 +5,7 @@ import { assertAccessible } from "./assertAccessible";
 
 test("cadastro até resolução de um caso", async ({ page }) => {
   const liveModel = process.env.PROCESSMIND_REQUIRE_MODEL === "1";
-  test.setTimeout(liveModel ? 360_000 : 120_000);
+  test.setTimeout(liveModel ? 600_000 : 180_000);
   const unique = Date.now().toString(36);
   await page.goto("/");
   await page.getByRole("button", { name: "Criar conta" }).click();
@@ -92,12 +92,9 @@ test("cadastro até resolução de um caso", async ({ page }) => {
   await auditCopilot.getByRole("button", { name: "Enviar pergunta" }).click();
   await expect(auditCopilot.getByText("Quais evidências devo conferir?")).toBeVisible();
   const firstTurn = auditCopilot.locator(".copilot-turn").first();
-  await expect(firstTurn.getByText("Resposta em processamento…")).toHaveCount(0, {
-    timeout: liveModel ? 120_000 : 60_000,
-  });
   await expect(firstTurn.locator("p").filter({
     hasText: /Copiloto:|Ollama indisponível|Dados insuficientes|Resposta da IA inválida/,
-  })).toBeVisible();
+  })).toBeVisible({ timeout: liveModel ? 180_000 : 60_000 });
   if (liveModel) {
     await expect(firstTurn.getByText("Copiloto:")).toBeVisible();
     await expect(firstTurn.getByRole("list", { name: "Citações de evidências" })
@@ -107,6 +104,25 @@ test("cadastro até resolução de um caso", async ({ page }) => {
   await expect(page).toHaveURL(auditUrl);
   await auditCopilot.getByRole("button", { name: /Ativo/ }).click();
   await expect(auditCopilot.getByText("Quais evidências devo conferir?")).toBeVisible();
+
+  await page.getByRole("link", { name: "Agente da empresa" }).click();
+  const companyAgent = page.getByRole("region", { name: "Agente da empresa" });
+  await expect(companyAgent).toBeVisible();
+  await companyAgent.getByRole("button", { name: "Novo chat" }).click();
+  await companyAgent.getByLabel("Sua pergunta").fill("Quais achados da empresa devo revisar?");
+  await companyAgent.getByRole("button", { name: "Enviar pergunta" }).click();
+  const companyTurn = companyAgent.locator(".copilot-turn").first();
+  await expect(companyTurn.locator("p").filter({
+    hasText: /Copiloto:|Ollama indisponível|Dados insuficientes|Resposta da IA inválida/,
+  })).toBeVisible({ timeout: liveModel ? 180_000 : 60_000 });
+  if (liveModel) {
+    await expect(companyTurn.getByText("Copiloto:")).toBeVisible();
+    await expect(companyTurn.getByRole("list", { name: "Citações de evidências" })
+      .getByRole("link").first()).toBeVisible();
+  }
+  await page.reload();
+  await companyAgent.getByRole("button", { name: /Ativo/ }).click();
+  await expect(companyAgent.getByText("Quais achados da empresa devo revisar?")).toBeVisible();
 
   await page.getByRole("link", { name: "Alertas" }).click();
   await expect(page.getByRole("heading", { name: "Achados" })).toBeVisible();
@@ -122,7 +138,7 @@ test("cadastro até resolução de um caso", async ({ page }) => {
   await expect(findingCopilot.getByText("O que verificar neste achado?")).toBeVisible();
   if (liveModel) {
     const temporaryTurn = findingCopilot.locator(".copilot-turn").first();
-    await expect(temporaryTurn.getByText("Copiloto:")).toBeVisible({ timeout: 120_000 });
+    await expect(temporaryTurn.getByText("Copiloto:")).toBeVisible({ timeout: 180_000 });
     await expect(temporaryTurn.getByRole("list", { name: "Citações de evidências" })
       .getByRole("link").first()).toBeVisible();
   }

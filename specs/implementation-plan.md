@@ -23,6 +23,10 @@ A primeira entrega funcional da V2 é o copiloto conversacional definido em `spe
 do Ollama local na demonstração sob demanda. O aceite exige resposta real
 com citações verificadas nos dois modos de chat.
 
+`specs/architecture/organization-copilot-agent-v1.md` estende o copiloto para
+uma conversa consultiva da organização, limitada a auditorias concluídas,
+achados e evidências, sem ações autônomas.
+
 `specs/architecture/import-dedup-lock-v1.md` removeu o bloqueio de deduplicação de importações da linha de organização sem alterar a semântica de concorrência. O snapshot de configuração da auditoria e as FKs entre domínios foram migrados nos incrementos posteriores descritos abaixo.
 
 `specs/architecture/audit-configuration-ownership-v1.md` definiu o primeiro incremento da migração do snapshot: tabela própria, backfill e leitura controlada com rollback. A gravação cruzada transitória e as FKs foram tratadas nos incrementos seguintes, permitindo o isolamento de credenciais no Compose.

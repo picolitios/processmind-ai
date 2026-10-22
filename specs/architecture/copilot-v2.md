@@ -2,6 +2,10 @@
 
 Status: primeira entrega da V2 após o corte de dados da identidade. O copiloto é auxiliar; nunca altera regras, auditorias, achados, casos ou decisões. Sem Ollama, retorna uma limitação explícita.
 
+Extensão posterior: `organization-copilot-agent-v1.md` acrescenta o chat de
+organização sem alvo específico. As regras abaixo de alvo único continuam
+aplicáveis aos chats por achado ou auditoria.
+
 ## Escopo e autorização
 
 - Cada chat tem exatamente um alvo: um achado ou uma auditoria concluída da organização ativa. Owner, Admin e Analyst com associação ativa podem perguntar; Viewer consulta apenas os dados determinísticos existentes.
