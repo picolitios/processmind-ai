@@ -54,6 +54,16 @@ class QuickDemoTests(unittest.TestCase):
         self.assertEqual(len(environment["COMPOSE_FILE"].split(os.pathsep)), 2)
         self.assertIn("--env-file", quickdemo.compose_args("config", "--quiet"))
 
+    def test_start_builds_the_migration_runner(self) -> None:
+        """A fresh or upgraded demo must not migrate with an old db-admin image."""
+        with (
+            patch.object(quickdemo, "run_compose") as compose,
+            patch.object(quickdemo, "existing_database", return_value=True),
+            patch.object(quickdemo.subprocess, "run"),
+        ):
+            quickdemo.start_stack({})
+        compose.assert_any_call("--profile", "tools", "build")
+
     def test_model_activation_requires_local_worker_probe(self) -> None:
         """A missing model cannot silently switch the demo to another endpoint."""
         values = {"OLLAMA_BASE_URL": quickdemo.FALLBACK_MODEL_URL}
