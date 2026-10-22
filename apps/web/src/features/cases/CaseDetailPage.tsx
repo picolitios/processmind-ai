@@ -93,9 +93,6 @@ export function CaseDetailPage() {
   }
   return (
     <>
-      <Link className="back-link" to={`/organizations/${organizationId}/cases`}>
-        ← Casos
-      </Link>
       <div className="page-heading">
         <div>
           <p className="eyebrow">DETALHE DO CASO</p>

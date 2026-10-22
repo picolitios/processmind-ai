@@ -3,6 +3,7 @@
 ## Navegação e dados
 
 - React Router organiza as onze telas obrigatórias por organização. As rotas ficam em `apps/web/src/features`, separadas por domínio, e são carregadas sob demanda. A área autenticada mostra a organização ativa e seu papel; a seleção troca o prefixo da rota.
+- Cada tela da organização oferece um botão de retorno à tela anterior da navegação interna. Em acesso direto ou após recarga, o retorno tem destino previsível: detalhe → lista da seção, seção → visão geral, visão geral → organizações. O botão não deve navegar para uma origem externa.
 - O cliente usa `/api/v1` no mesmo domínio, cookie HttpOnly e `csrf_token` da sessão em mutações. Após criar organização, a sessão é atualizada para incorporar o novo vínculo. Dados empresariais são requisitados sempre com o ID da organização da rota; o backend valida associação e papel em cada operação.
 - TanStack Query guarda consultas por organização e filtros, refaz consultas de jobs em andamento e invalida listas após mutações. Coleções longas oferecem paginação por cursor. Estados de carregamento, erro e vazio são explícitos; mensagens de erro vêm do contrato da API, sem expor detalhes internos.
 

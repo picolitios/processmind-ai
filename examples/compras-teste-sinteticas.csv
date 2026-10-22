@@ -1,0 +1,9 @@
+purchase_id,supplier_id,purchase_date,product_id,quantity,unit_price,currency,total_amount,supplier_name,product_name,unit_of_measure,expected_delivery_date,actual_delivery_date
+P-TEST-001,FORN-ALFA,2026-09-03,SKU-CABO,10,12.50,BRL,125.00,Fornecedor Alfa,Cabo de rede,un,2026-09-08,2026-09-08
+P-TEST-002,FORN-ALFA,2026-09-03,SKU-CABO,10,12.50,BRL,125.00,Fornecedor Alfa,Cabo de rede,un,2026-09-08,2026-09-08
+P-TEST-003,FORN-BETA,2026-09-05,SKU-MOUSE,3,40.00,BRL,100.00,Fornecedor Beta,Mouse USB,un,2026-09-12,2026-09-12
+P-TEST-004,FORN-GAMA,2026-09-06,SKU-MONITOR,2,750.00,BRL,1500.00,Fornecedor Gama,Monitor 24 polegadas,un,2026-09-15,2026-09-21
+P-TEST-005,FORN-ALFA,2026-09-08,SKU-TECLADO,5,80.00,BRL,400.00,Fornecedor Alfa,Teclado USB,un,2026-09-15,2026-09-14
+P-TEST-006,FORN-BETA,2026-09-09,SKU-MOUSE,2,40.00,BRL,80.00,Fornecedor Beta,Mouse USB,un,2026-09-18,2026-09-17
+P-TEST-007,FORN-GAMA,2026-09-10,SKU-SUPORTE,4,35.00,BRL,140.00,Fornecedor Gama,Suporte de mesa,un,2026-09-17,2026-09-17
+P-TEST-008,FORN-DELTA,2026-09-11,SKU-FONTE,3,120.00,BRL,360.00,Fornecedor Delta,Fonte 500 W,un,2026-09-20,2026-09-20

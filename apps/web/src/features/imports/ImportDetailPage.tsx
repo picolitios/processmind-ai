@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useOutletContext, useParams } from "react-router";
+import { useOutletContext, useParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, json, orgPath } from "../../lib/api";
 import type { ImportBatch, Page } from "../../lib/api";
@@ -94,12 +94,6 @@ export function ImportDetailPage() {
   }
   return (
     <>
-      <Link
-        className="back-link"
-        to={`/organizations/${organizationId}/imports`}
-      >
-        ← Importações
-      </Link>
       <div className="page-heading">
         <div>
           <p className="eyebrow">IMPORTAÇÃO</p>

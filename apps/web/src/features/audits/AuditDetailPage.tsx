@@ -23,12 +23,6 @@ export function AuditDetailPage() {
   );
   return (
     <>
-      <Link
-        className="back-link"
-        to={`/organizations/${organizationId}/audits`}
-      >
-        ← Auditorias
-      </Link>
       <div className="page-heading">
         <div>
           <p className="eyebrow">EXECUÇÃO</p>

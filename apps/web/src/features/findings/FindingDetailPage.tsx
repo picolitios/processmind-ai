@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate, useOutletContext, useParams } from "react-router";
+import { useNavigate, useOutletContext, useParams } from "react-router";
 import { api, json, orgPath } from "../../lib/api";
 import type { Finding, Case } from "../../lib/api";
 import { Feedback, QueryState, useResource } from "../../lib/useResource";
@@ -58,12 +58,6 @@ export function FindingDetailPage() {
   }
   return (
     <>
-      <Link
-        className="back-link"
-        to={`/organizations/${organizationId}/findings`}
-      >
-        ← Achados
-      </Link>
       <div className="page-heading">
         <div>
           <p className="eyebrow">DETALHE DO ALERTA</p>

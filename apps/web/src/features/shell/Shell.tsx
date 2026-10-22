@@ -1,4 +1,5 @@
-import { NavLink, Outlet, useNavigate, useParams } from "react-router";
+import { useEffect, useRef, useState } from "react";
+import { NavLink, Outlet, useLocation, useNavigate, useParams } from "react-router";
 import { useAuth } from "../auth/AuthProvider";
 import { useResource } from "../../lib/useResource";
 import type { Organization, Role } from "../../lib/api";
@@ -12,15 +13,47 @@ const nav = [
   ["agent", "Agente da empresa", "✦"],
   ["settings", "Configurações", "⚙"],
 ];
+
+// Direct links return to their section; in-app navigation uses the browser's prior entry.
+function fallbackPath(organizationId: string, pathname: string) {
+  if (!organizationId) return "/";
+  const prefix = `/organizations/${organizationId}`;
+  const parts = pathname.slice(prefix.length).split("/").filter(Boolean);
+  if (parts.length === 2 && ["imports", "audits", "findings", "cases"].includes(parts[0])) {
+    return `${prefix}/${parts[0]}`;
+  }
+  return parts[0] === "dashboard" ? "/" : `${prefix}/dashboard`;
+}
+
 export function Shell() {
   const { organizationId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const route = `${location.pathname}${location.search}${location.hash}`;
+  const lastRoute = useRef(route);
+  const [hasPreviousScreen, setHasPreviousScreen] = useState(false);
   const { session, logout } = useAuth();
   const orgs = useResource<Organization[]>(["organizations"], "/organizations");
   const current = orgs.data?.find((org) => org.id === organizationId);
   const role = session?.memberships.find(
     (member) => member.organization_id === organizationId,
   )?.role;
+  useEffect(() => {
+    if (lastRoute.current !== route) {
+      lastRoute.current = route;
+      setHasPreviousScreen(true);
+    }
+  }, [route]);
+
+  function goBack() {
+    const historyIndex = (window.history.state as { idx?: unknown } | null)?.idx;
+    if (hasPreviousScreen && typeof historyIndex === "number" && historyIndex > 0) {
+      navigate(-1);
+    } else {
+      navigate(fallbackPath(organizationId || "", location.pathname));
+    }
+  }
+
   async function signOut() {
     await logout();
     navigate("/login");
@@ -93,6 +126,11 @@ export function Shell() {
           <span className="topbar-right">{roleLabel(role)}</span>
         </header>
         <main className="page">
+          {organizationId && (
+            <button type="button" className="back-link" onClick={goBack}>
+              ← Voltar à tela anterior
+            </button>
+          )}
           <Outlet
             context={{
               organizationId: organizationId || "",
