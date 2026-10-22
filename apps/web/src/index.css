@@ -648,9 +648,17 @@ tr:last-child td {
 }
 .back-link {
   display: inline-block;
+  border: 0;
+  background: none;
+  padding: 0;
+  color: #087e72;
+  text-align: left;
   font-size: 0.8rem;
   font-weight: 700;
   margin-bottom: 1.3rem;
+}
+.back-link:hover {
+  text-decoration: underline;
 }
 .evidence {
   border: 1px solid #e1ebe7;

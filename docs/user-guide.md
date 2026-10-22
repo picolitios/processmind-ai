@@ -2,6 +2,10 @@
 
 Comece pela [instalação local](installation.md). O exemplo [`compras-exemplo.csv`](../examples/compras-exemplo.csv) contém duas compras sintéticas com os mesmos atributos e IDs distintos; a regra `DUPLICATE` deve produzir um achado após a auditoria. Nenhum dado real é necessário.
 
+Para um teste mais amplo, importe [`compras-teste-sinteticas.csv`](../examples/compras-teste-sinteticas.csv). Ele contém oito compras fictícias válidas. Associe as oito colunas obrigatórias e também `supplier_name`, `product_name`, `unit_of_measure`, `expected_delivery_date` e `actual_delivery_date` às colunas de mesmo nome. Após a importação concluída, a auditoria deve apontar ao menos `DUPLICATE` (compras 001/002), `TOTAL_MISMATCH` (003) e `LATE_DELIVERY` (004). O atraso depende do mapeamento das duas datas opcionais. Não reimporte o mesmo arquivo na mesma organização sem informar o motivo de reimportação.
+
+O botão **Voltar à tela anterior** retorna à tela visitada antes da atual, inclusive quando ela foi aberta pelo menu ou por uma citação. Ao abrir um endereço diretamente ou recarregar a página, o botão leva à lista da seção; nas telas principais, leva à visão geral ou à lista de organizações.
+
 ## Roteiro de 10 minutos
 
 1. Em <http://localhost:5173>, selecione **Criar conta** e cadastre um usuário de demonstração. Crie uma organização com nome e identificador únicos.

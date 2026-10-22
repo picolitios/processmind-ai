@@ -85,6 +85,10 @@ test("cadastro até resolução de um caso", async ({ page }) => {
   });
   await assertAccessible(page);
   const auditUrl = page.url();
+  await page.getByRole("button", { name: "Voltar à tela anterior" }).click();
+  await expect(page.getByRole("heading", { name: "Auditorias", exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "Abrir →" }).click();
+  await expect(page).toHaveURL(auditUrl);
   const auditCopilot = page.getByRole("region", { name: "Copiloto conversacional" });
   await auditCopilot.getByRole("button", { name: "Novo chat" }).click();
   await expect(auditCopilot.getByRole("heading", { name: "Chat salvo" })).toBeVisible();
@@ -120,6 +124,9 @@ test("cadastro até resolução de um caso", async ({ page }) => {
     await expect(companyTurn.getByRole("list", { name: "Citações de evidências" })
       .getByRole("link").first()).toBeVisible();
   }
+  await page.getByRole("button", { name: "Voltar à tela anterior" }).click();
+  await expect(page).toHaveURL(auditUrl);
+  await page.getByRole("link", { name: "Agente da empresa" }).click();
   await page.reload();
   await companyAgent.getByRole("button", { name: /Ativo/ }).click();
   await expect(companyAgent.getByText("Quais achados da empresa devo revisar?")).toBeVisible();
@@ -129,6 +136,9 @@ test("cadastro até resolução de um caso", async ({ page }) => {
   await assertAccessible(page);
   await page.getByRole("link", { name: /DUPLICATE/ }).click();
   await assertAccessible(page);
+  await page.getByRole("button", { name: "Voltar à tela anterior" }).click();
+  await expect(page.getByRole("heading", { name: "Achados" })).toBeVisible();
+  await page.getByRole("link", { name: /DUPLICATE/ }).click();
   const findingCopilot = page.getByRole("region", { name: "Copiloto conversacional" });
   await findingCopilot.getByLabel("Tipo de chat").selectOption("temporary");
   await findingCopilot.getByRole("button", { name: "Novo chat" }).click();
