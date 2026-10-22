@@ -16,6 +16,7 @@ type Props = {
   organizationId: string;
   findingId?: string;
   auditId?: string;
+  scope?: "organization";
 };
 
 function citationUrl(organizationId: string, findingId: string, evidenceId: string) {
@@ -23,7 +24,7 @@ function citationUrl(organizationId: string, findingId: string, evidenceId: stri
 }
 
 // Keep the temporary chat in page state; only normal chats are loaded from the saved list.
-export function CopilotPanel({ organizationId, findingId, auditId }: Props) {
+export function CopilotPanel({ organizationId, findingId, auditId, scope }: Props) {
   const client = useQueryClient();
   const base = orgPath(organizationId, "/ai/copilot");
   const [mode, setMode] = useState<CopilotMode>("normal");
@@ -38,14 +39,15 @@ export function CopilotPanel({ organizationId, findingId, auditId }: Props) {
   const [busy, setBusy] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const cursor = cursors.at(-1) || "";
-  const target = findingId ? { finding_id: findingId } : { audit_id: auditId };
-  const targetKey = findingId || auditId || "";
+  const target = scope === "organization" ? { scope } :
+    findingId ? { finding_id: findingId } : { audit_id: auditId };
+  const targetKey = scope || findingId || auditId || "";
   const policy = useResource<CopilotPolicy>(
     ["copilot-policy", organizationId], `${base}/policy`, Boolean(targetKey),
   );
   const conversations = useResource<Page<CopilotConversation>>(
     ["copilot-list", organizationId, targetKey, cursor],
-    `${base}/conversations${query({ finding_id: findingId, audit_id: auditId, cursor })}`,
+    `${base}/conversations${query({ finding_id: findingId, audit_id: auditId, scope, cursor })}`,
     Boolean(targetKey),
   );
   const detail = useResource<CopilotDetail>(
@@ -69,7 +71,7 @@ export function CopilotPanel({ organizationId, findingId, auditId }: Props) {
     setQuestion("");
   }
 
-  // Start a chat for the current finding or audit and refresh the saved list if needed.
+  // Start a chat within its tenant and refresh the corresponding saved list.
   async function createConversation() {
     setError("");
     setSuccess("");
@@ -160,12 +162,13 @@ export function CopilotPanel({ organizationId, findingId, auditId }: Props) {
   const waiting = turns.some((turn) => turn.status === "queued" || turn.status === "running");
 
   return (
-    <section className="card copilot-panel" aria-label="Copiloto conversacional">
+    <section className="card copilot-panel" aria-label={scope === "organization" ? "Agente da empresa" : "Copiloto conversacional"}>
       <p className="eyebrow">APOIO OPCIONAL</p>
-      <h2>Copiloto conversacional</h2>
+      <h2>{scope === "organization" ? "Agente da empresa" : "Copiloto conversacional"}</h2>
       <p className="muted">
-        Respostas auxiliares baseadas em evidências. Confira as citações antes de decidir;
-        a auditoria e os casos não são alterados pelo chat.
+        {scope === "organization"
+          ? "Analisa auditorias concluídas, achados e evidências desta empresa. Confira as citações; o agente não altera dados."
+          : "Respostas auxiliares baseadas em evidências. Confira as citações antes de decidir; a auditoria e os casos não são alterados pelo chat."}
       </p>
       <QueryState loading={policy.isLoading} error={policy.error} />
       <Feedback error={error} success={success} />
@@ -204,7 +207,7 @@ export function CopilotPanel({ organizationId, findingId, auditId }: Props) {
             </button>
           ))}
         </div>
-      ) : conversations.data && <p className="empty">Nenhum chat salvo para este alvo.</p>}
+      ) : conversations.data && <p className="empty">{scope === "organization" ? "Nenhum chat salvo nesta empresa." : "Nenhum chat salvo para este alvo."}</p>}
       {conversations.data && (cursors.length > 1 || conversations.data.next_cursor) && (
         <div className="copilot-pagination">
           <button className="button secondary" disabled={cursors.length === 1}
@@ -240,7 +243,7 @@ export function CopilotPanel({ organizationId, findingId, auditId }: Props) {
                 <ol className="copilot-turns">
                   {turns.map((turn) => <CopilotTurnView key={turn.id} turn={turn} organizationId={organizationId} />)}
                 </ol>
-              ) : <p className="empty">Faça a primeira pergunta sobre as evidências deste alvo.</p>}
+              ) : <p className="empty">{scope === "organization" ? "Faça uma pergunta sobre as auditorias e evidências da empresa." : "Faça a primeira pergunta sobre as evidências deste alvo."}</p>}
               {detail.data.conversation.status === "active" && (
                 <form onSubmit={sendQuestion}>
                   <label>

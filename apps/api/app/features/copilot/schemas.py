@@ -19,11 +19,16 @@ class ConversationInput(BaseModel):
 
     finding_id: uuid.UUID | None = None
     audit_id: uuid.UUID | None = None
+    scope: Literal["organization"] | None = None
     mode: Literal["normal", "temporary"]
 
     @model_validator(mode="after")
     def one_target(self) -> "ConversationInput":
-        if self.model_fields_set - {"mode"} not in ({"finding_id"}, {"audit_id"}) or (
+        if self.scope == "organization":
+            if self.finding_id is not None or self.audit_id is not None:
+                raise ValueError("organization scope cannot include a target")
+            return self
+        if self.model_fields_set - {"mode", "scope"} not in ({"finding_id"}, {"audit_id"}) or (
             (self.finding_id is None) == (self.audit_id is None)
         ):
             raise ValueError("exactly one target is required")

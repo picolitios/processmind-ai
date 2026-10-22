@@ -1,13 +1,13 @@
 import uuid
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Header, Query
 from sqlalchemy import and_, or_, select
 
 from app.core.errors import ApiError
 from app.features.audit.ai_context import validate_ai_target
-from app.features.audit.models import AuditFinding, FindingEvidence
+from app.features.audit.models import AuditFinding, AuditRun, FindingEvidence
 from app.features.audit.routes import make_cursor
 from app.features.copilot.models import CopilotConversation, CopilotPolicy, CopilotTurn
 from app.features.copilot.schemas import ConversationInput, PolicyInput, QuestionInput
@@ -37,6 +37,8 @@ def conversation_view(conversation: CopilotConversation) -> dict[str, Any]:
         "id": conversation.id,
         "finding_id": conversation.finding_id,
         "audit_id": conversation.run_id,
+        "scope": "organization" if conversation.finding_id is None and conversation.run_id is None
+        else "finding" if conversation.finding_id is not None else "audit",
         "mode": conversation.mode,
         "status": conversation.status,
         "created_at": conversation.created_at,
@@ -81,9 +83,17 @@ def turn_views(db: DB, turns: list[CopilotTurn]) -> list[dict[str, Any]]:
                     AuditFinding.id == FindingEvidence.finding_id,
                 ),
             )
+            .join(
+                AuditRun,
+                and_(
+                    AuditRun.organization_id == AuditFinding.organization_id,
+                    AuditRun.id == AuditFinding.run_id,
+                ),
+            )
             .where(
                 FindingEvidence.organization_id == turns[0].organization_id,
                 FindingEvidence.id.in_(ids),
+                AuditRun.status == "succeeded",
             )
         ).all()
         citations = {
@@ -139,7 +149,8 @@ def create_conversation(
     organization_id: uuid.UUID, data: ConversationInput, db: DB, auth: CsrfAuth,
 ) -> dict[str, Any]:
     _, member = require_membership(db, auth, organization_id, WRITERS)
-    validate_ai_target(db, organization_id, data.finding_id, data.audit_id)
+    if data.scope != "organization":
+        validate_ai_target(db, organization_id, data.finding_id, data.audit_id)
     policy = policy_view(db.get(CopilotPolicy, organization_id))
     needs_approval = (
         data.mode == "normal" and policy["temporary_default"] and member.role not in MANAGERS
@@ -164,10 +175,14 @@ def create_conversation(
 def list_conversations(
     organization_id: uuid.UUID, db: DB, auth: Auth,
     finding_id: uuid.UUID | None = None, audit_id: uuid.UUID | None = None,
+    scope: Literal["organization"] | None = None,
     limit: int = Query(default=20, ge=1, le=50), cursor: str | None = None,
 ) -> dict[str, Any]:
     require_membership(db, auth, organization_id, WRITERS)
-    if (finding_id is None) == (audit_id is None):
+    if scope == "organization":
+        if finding_id is not None or audit_id is not None:
+            raise ApiError(422, "invalid_target", "Escopo e alvo são exclusivos")
+    elif (finding_id is None) == (audit_id is None):
         raise ApiError(422, "invalid_target", "Informe exatamente um alvo")
     query = select(CopilotConversation).where(
         CopilotConversation.organization_id == organization_id,

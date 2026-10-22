@@ -59,6 +59,11 @@ const SettingsPage = lazy(() =>
     default: SettingsPage,
   })),
 );
+const OrganizationAgentPage = lazy(() =>
+  import("./features/copilot/OrganizationAgentPage").then(({ OrganizationAgentPage }) => ({
+    default: OrganizationAgentPage,
+  })),
+);
 
 function Router() {
   const { session, loading } = useAuth();
@@ -125,6 +130,10 @@ function Router() {
           <Route
             path="/organizations/:organizationId/settings"
             element={<SettingsPage />}
+          />
+          <Route
+            path="/organizations/:organizationId/agent"
+            element={<OrganizationAgentPage />}
           />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

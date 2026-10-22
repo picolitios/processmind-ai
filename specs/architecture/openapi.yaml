@@ -326,14 +326,14 @@ paths:
   /organizations/{organization_id}/ai/copilot/conversations:
     get:
       tags: [copilot]
-      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/CopilotTargetQuery' }, { $ref: '#/components/parameters/CopilotAuditQuery' }, { $ref: '#/components/parameters/CopilotLimit' }, { $ref: '#/components/parameters/Cursor' } ]
-      summary: Listar apenas chats normais do autor para um alvo
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/CopilotTargetQuery' }, { $ref: '#/components/parameters/CopilotAuditQuery' }, { $ref: '#/components/parameters/CopilotScopeQuery' }, { $ref: '#/components/parameters/CopilotLimit' }, { $ref: '#/components/parameters/Cursor' } ]
+      summary: Listar chats normais do autor para um alvo ou organização
       responses:
         '200': { description: Página, content: { application/json: { schema: { $ref: '#/components/schemas/CopilotConversationPage' } } } }
     post:
       tags: [copilot]
       parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/Csrf' } ]
-      summary: Criar chat normal ou temporário para um alvo concluído
+      summary: Criar chat normal ou temporário para um alvo concluído ou organização
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CopilotConversationInput' } } } }
       responses:
         '201': { description: Chat criado, content: { application/json: { schema: { $ref: '#/components/schemas/CopilotConversation' } } } }
@@ -419,8 +419,9 @@ components:
     FindingId: { name: finding_id, in: path, required: true, schema: { type: string, format: uuid } }
     ConversationId: { name: conversation_id, in: path, required: true, schema: { type: string, format: uuid } }
     QuestionId: { name: question_id, in: path, required: true, schema: { type: string, format: uuid } }
-    CopilotTargetQuery: { name: finding_id, in: query, schema: { type: string, format: uuid }, description: Informe exatamente um entre finding_id e audit_id }
+    CopilotTargetQuery: { name: finding_id, in: query, schema: { type: string, format: uuid }, description: Informe exatamente um entre finding_id, audit_id e scope=organization }
     CopilotAuditQuery: { name: audit_id, in: query, schema: { type: string, format: uuid } }
+    CopilotScopeQuery: { name: scope, in: query, schema: { type: string, enum: [organization] } }
     CopilotLimit: { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 50, default: 20 } }
     CaseId: { name: case_id, in: path, required: true, schema: { type: string, format: uuid } }
     Csrf: { name: X-CSRF-Token, in: header, required: true, schema: { type: string } }
@@ -479,8 +480,8 @@ components:
     AIInput: { oneOf: [ { type: object, required: [finding_id], additionalProperties: false, properties: { finding_id: { type: string, format: uuid } } }, { type: object, required: [audit_id], additionalProperties: false, properties: { audit_id: { type: string, format: uuid } } } ] }
     AIAnalysis: { type: object, required: [id, status], properties: { id: { type: string, format: uuid }, status: { type: string, enum: [queued, running, succeeded, failed] }, summary: { type: [string, 'null'] }, possible_causes: { type: array, items: { type: string } }, suggested_checks: { type: array, items: { type: string } }, corrective_actions: { type: array, items: { type: string } }, evidence_ids: { type: array, items: { type: string, format: uuid } }, limitation: { type: [string, 'null'] } } }
     CopilotPolicy: { type: object, required: [temporary_default, memory_turn_limit], additionalProperties: false, properties: { temporary_default: { type: boolean }, memory_turn_limit: { type: integer, minimum: 0, maximum: 20 } } }
-    CopilotConversationInput: { type: object, required: [mode], oneOf: [ { required: [finding_id] }, { required: [audit_id] } ], additionalProperties: false, properties: { finding_id: { type: string, format: uuid }, audit_id: { type: string, format: uuid }, mode: { type: string, enum: [normal, temporary] } } }
-    CopilotConversation: { type: object, required: [id, mode, status, created_at], properties: { id: { type: string, format: uuid }, finding_id: { type: [string, 'null'], format: uuid }, audit_id: { type: [string, 'null'], format: uuid }, mode: { type: string, enum: [normal, temporary] }, status: { type: string, enum: [active, pending, rejected] }, created_at: { type: string, format: date-time }, expires_at: { type: [string, 'null'], format: date-time } } }
+    CopilotConversationInput: { type: object, required: [mode], oneOf: [ { required: [finding_id] }, { required: [audit_id] }, { required: [scope] } ], additionalProperties: false, properties: { finding_id: { type: string, format: uuid }, audit_id: { type: string, format: uuid }, scope: { type: string, enum: [organization] }, mode: { type: string, enum: [normal, temporary] } } }
+    CopilotConversation: { type: object, required: [id, scope, mode, status, created_at], properties: { id: { type: string, format: uuid }, finding_id: { type: [string, 'null'], format: uuid }, audit_id: { type: [string, 'null'], format: uuid }, scope: { type: string, enum: [organization, finding, audit] }, mode: { type: string, enum: [normal, temporary] }, status: { type: string, enum: [active, pending, rejected] }, created_at: { type: string, format: date-time }, expires_at: { type: [string, 'null'], format: date-time } } }
     CopilotConversationPage: { type: object, required: [items, next_cursor], properties: { items: { type: array, items: { $ref: '#/components/schemas/CopilotConversation' } }, next_cursor: { type: [string, 'null'] } } }
     CopilotApprovalPage: { type: object, required: [items], properties: { items: { type: array, items: { type: object, properties: { id: { type: string, format: uuid }, author_id: { type: string, format: uuid }, finding_id: { type: [string, 'null'], format: uuid }, audit_id: { type: [string, 'null'], format: uuid }, mode: { type: string }, status: { type: string }, created_at: { type: string, format: date-time } } } } } }
     CopilotQuestionInput: { type: object, required: [question], additionalProperties: false, properties: { question: { type: string, minLength: 1, maxLength: 1000 } } }

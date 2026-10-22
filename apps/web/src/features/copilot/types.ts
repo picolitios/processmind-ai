@@ -7,6 +7,7 @@ export type CopilotConversation = {
   id: string;
   finding_id: string | null;
   audit_id: string | null;
+  scope: "organization" | "finding" | "audit";
   mode: CopilotMode;
   status: "active" | "pending" | "rejected";
   created_at: string;
