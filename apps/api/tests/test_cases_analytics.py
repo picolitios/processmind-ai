@@ -52,6 +52,36 @@ def seed_findings(organization_id: str, user_email: str) -> tuple[str, str]:
     return ids[0], ids[1]
 
 
+def test_direct_review_reason_appears_in_tenant_scoped_activity() -> None:
+    with TestClient(app) as owner, TestClient(app) as outsider:
+        owner_email = create_user(owner, "activity-owner")
+        owner_csrf = login(owner, owner_email)
+        login(outsider, create_user(outsider, "activity-outsider"))
+        org_id = create_org(owner, owner_csrf, "activity-org")
+        finding_id, _ = seed_findings(org_id, owner_email)
+        base = f"/api/v1/organizations/{org_id}/findings/{finding_id}"
+        profile = owner.patch(
+            "/api/v1/auth/profile",
+            headers=csrf_headers(owner_csrf),
+            json={"display_name": "Ana Revisora"},
+        )
+        assert profile.status_code == 200
+        reviewed = owner.patch(
+            base,
+            headers=csrf_headers(owner_csrf),
+            json={"review_state": "dismissed", "reason": "Pedido autorizado, sem duplicidade"},
+        )
+        assert reviewed.status_code == 200, reviewed.text
+        activity = owner.get(f"{base}/activity")
+        assert activity.status_code == 200, activity.text
+        event = next(
+            item for item in activity.json()["items"] if item["action"] == "finding.reviewed"
+        )
+        assert event["metadata"]["reason"] == "Pedido autorizado, sem duplicidade"
+        assert event["actor_name"] == "Ana Revisora"
+        assert outsider.get(f"{base}/activity").status_code == 404
+
+
 def test_case_lifecycle_review_and_dashboard_isolation() -> None:
     with TestClient(app) as owner, TestClient(app) as outsider, TestClient(app) as viewer:
         owner_email = create_user(owner, "case-owner")

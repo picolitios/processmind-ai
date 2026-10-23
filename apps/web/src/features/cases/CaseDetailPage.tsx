@@ -8,7 +8,7 @@ import { canAdmin, canWrite } from "../shell/Shell";
 import { Status } from "../imports/ImportsPage";
 import { useAuth } from "../auth/AuthProvider";
 
-type Member = { user_id: string; status: string };
+type Member = { user_id: string; status: string; display_name: string | null; email: string | null };
 
 export function CaseDetailPage() {
   const { organizationId, role } = useOutletContext<ShellContext>();
@@ -34,6 +34,12 @@ export function CaseDetailPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [busy, setBusy] = useState(false);
+  const memberName = (userId: string | null) => {
+    if (!userId) return "Não atribuído";
+    if (userId === session?.user.id) return session.user.display_name || session.user.email;
+    const member = members.data?.items.find((item) => item.user_id === userId);
+    return member?.display_name || member?.email || "Membro da equipe";
+  };
   useEffect(() => {
     if (detail.data?.status === "in_review") setStatus("resolved");
   }, [detail.data?.status]);
@@ -123,7 +129,7 @@ export function CaseDetailPage() {
               <h2>Decisão</h2>
               <p>
                 <strong>Responsável:</strong>{" "}
-                {detail.data.assignee_user_id || "Não atribuído"}
+              {detail.data.assignee_name || memberName(detail.data.assignee_user_id)}
               </p>
               {canWrite(role) &&
                 !["resolved", "dismissed"].includes(detail.data.status) && (
@@ -149,7 +155,7 @@ export function CaseDetailPage() {
                           )
                           .map((member) => (
                             <option key={member.user_id} value={member.user_id}>
-                              Membro {member.user_id.slice(0, 8)}
+                              {member.display_name || member.email || "Membro da equipe"}
                             </option>
                           ))}
                       </select>
@@ -203,8 +209,12 @@ export function CaseDetailPage() {
               {detail.data.history?.length ? (
                 detail.data.history.map((event, index) => (
                   <div className="history-event" key={index}>
-                    <code>{String(event.action || "Alteração")}</code>
+                    <strong>{String(event.action || "Alteração")}</strong>
+                    {Boolean((event.metadata as { reason?: string } | undefined)?.reason) && (
+                      <p>Justificativa: {String((event.metadata as { reason?: string }).reason)}</p>
+                    )}
                     <small>
+                      {String(event.actor_name || "Autor não identificado")} ·{" "}
                       {new Date(String(event.occurred_at)).toLocaleString(
                         "pt-BR",
                       )}
@@ -224,7 +234,7 @@ export function CaseDetailPage() {
                   <article className="comment" key={item.id}>
                     <p>{item.body}</p>
                     <small>
-                      {item.author_user_id.slice(0, 8)} ·{" "}
+                      {item.author_name || "Autor não identificado"} ·{" "}
                       {new Date(item.created_at).toLocaleString("pt-BR")}
                     </small>
                   </article>

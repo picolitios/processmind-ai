@@ -12,7 +12,7 @@ from sqlalchemy import and_, or_, select
 
 from app.core.config import settings
 from app.core.errors import ApiError
-from app.features.audit.evidence import duplicate_purchase_facts, evidence_data
+from app.features.audit.evidence import evidence_data, finding_subject, purchase_facts_for_evidence
 from app.features.audit.models import AuditConfiguration, AuditFinding, AuditRun, FindingEvidence
 from app.features.audit.outbox import OutboxEvent
 from app.features.audit.rules import RULE_VERSION
@@ -66,6 +66,7 @@ def finding_view(
     evidence: Sequence[FindingEvidence],
     purchase_facts: dict[uuid.UUID, dict[str, Any]],
 ) -> dict[str, Any]:
+    subject_key, subject_label = finding_subject(finding, evidence, purchase_facts)
     return {
         "id": finding.id,
         "audit_id": finding.run_id,
@@ -75,6 +76,8 @@ def finding_view(
         "review_state": finding.review_state,
         "detected_at": finding.detected_at,
         "explanation": finding.explanation,
+        "subject_key": subject_key,
+        "subject_label": subject_label,
         "evidence": [
             {
                 "id": item.id,
@@ -270,7 +273,7 @@ def list_findings(
         ):
             evidence_by_finding[item.finding_id].append(item)
     page_evidence = [item for group in evidence_by_finding.values() for item in group]
-    purchase_facts = duplicate_purchase_facts(db, organization_id, page, page_evidence)
+    purchase_facts = purchase_facts_for_evidence(db, organization_id, page, page_evidence)
     return {
         "items": [
             finding_view(item, evidence_by_finding[item.id], purchase_facts) for item in page
@@ -305,5 +308,5 @@ def get_finding(
         )
         .order_by(FindingEvidence.id)
     ).all()
-    purchase_facts = duplicate_purchase_facts(db, organization_id, [finding], evidence)
+    purchase_facts = purchase_facts_for_evidence(db, organization_id, [finding], evidence)
     return finding_view(finding, evidence, purchase_facts)

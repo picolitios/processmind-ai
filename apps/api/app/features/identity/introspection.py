@@ -11,7 +11,7 @@ from sqlalchemy.sql.elements import ColumnElement
 
 from app.core.config import settings
 from app.core.errors import ApiError
-from app.features.identity.models import Membership
+from app.features.identity.models import Membership, User
 from app.features.identity.routes import require_membership
 from app.features.identity.security import DB, authenticate_token, digest
 
@@ -48,6 +48,7 @@ class MemberReferencesInput(BaseModel):
     session_token: str = Field(min_length=1, max_length=256)
     organization_id: uuid.UUID
     membership_ids: list[uuid.UUID] = Field(default_factory=list, max_length=100)
+    user_ids: list[uuid.UUID] = Field(default_factory=list, max_length=100)
     user_id: uuid.UUID | None = None
 
 
@@ -55,6 +56,8 @@ class MemberReference(BaseModel):
     membership_id: uuid.UUID
     user_id: uuid.UUID
     status: Literal["active", "inactive"]
+    display_name: str | None = None
+    email: str | None = None
 
 
 class MemberReferencesResult(BaseModel):
@@ -75,11 +78,13 @@ def signature(
 
 
 def member_references_subject(
-    organization_id: uuid.UUID, membership_ids: list[uuid.UUID], user_id: uuid.UUID | None
+    organization_id: uuid.UUID, membership_ids: list[uuid.UUID], user_id: uuid.UUID | None,
+    user_ids: list[uuid.UUID] | None = None,
 ) -> str:
     # Canonical ordering binds the HMAC to every requested reference, independent of list order.
     members = ",".join(sorted(str(member_id) for member_id in membership_ids))
-    return f"member-refs:{organization_id}:{user_id or ''}:{members}"
+    requested_users = ",".join(sorted(str(item) for item in (user_ids or [])))
+    return f"member-refs:{organization_id}:{user_id or ''}:{members}:{requested_users}"
 
 
 def verify_internal_signature(
@@ -162,7 +167,9 @@ def resolve_member_references(
         x_internal_timestamp,
         x_internal_signature,
         data.session_token,
-        member_references_subject(data.organization_id, data.membership_ids, data.user_id),
+        member_references_subject(
+            data.organization_id, data.membership_ids, data.user_id, data.user_ids
+        ),
         request,
         x_internal_correlation_id,
     )
@@ -173,11 +180,13 @@ def resolve_member_references(
         filters.append(Membership.id.in_(data.membership_ids))
     if data.user_id is not None:
         filters.append(Membership.user_id == data.user_id)
+    if data.user_ids:
+        filters.append(Membership.user_id.in_(data.user_ids))
     members = (
-        db.scalars(
-            select(Membership).where(
-                Membership.organization_id == data.organization_id, or_(*filters)
-            )
+        db.execute(
+            select(Membership, User)
+            .join(User, User.id == Membership.user_id)
+            .where(Membership.organization_id == data.organization_id, or_(*filters))
         ).all()
         if filters
         else []
@@ -185,7 +194,10 @@ def resolve_member_references(
     return MemberReferencesResult(
         organization_id=data.organization_id,
         members=[
-            MemberReference(membership_id=member.id, user_id=member.user_id, status=member.status)
-            for member in members
+            MemberReference(
+                membership_id=member.id, user_id=member.user_id, status=member.status,
+                display_name=user.display_name, email=user.email,
+            )
+            for member, user in members
         ],
     )

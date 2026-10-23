@@ -1,5 +1,7 @@
 # ProcessMind AI
 
+O gerenciamento da **Equipe** permite registrar nomes e convidar membros por e-mail. Na instalação Docker local, os convites aparecem no Mailpit em `http://127.0.0.1:8025`; na demo isolada, em `http://127.0.0.1:8026`. O destinatário precisa entrar com o mesmo e-mail e confirmar o convite. Veja [instalação](docs/installation.md) e [spec](specs/architecture/team-invitations-and-finding-activity-v1.md).
+
 ProcessMind AI is a local-first B2B purchase audit platform. Teams import CSV/XLSX records, run versioned deterministic checks, review evidence-backed findings, and resolve cases. Optional local Ollama explanations cite stored evidence; they do not determine whether fraud occurred.
 
 ## Implemented

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { api, json } from "../../lib/api";
 import { Feedback } from "../../lib/useResource";
 import { useAuth } from "./AuthProvider";
@@ -7,9 +7,11 @@ import { useAuth } from "./AuthProvider";
 export function AuthPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [register, setRegister] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   async function submit(event: React.FormEvent) {
@@ -18,9 +20,9 @@ export function AuthPage() {
     setBusy(true);
     try {
       if (register)
-        await api("/auth/register", json("POST", { email, password }));
+        await api("/auth/register", json("POST", { email, password, display_name: displayName }));
       await login(email, password);
-      navigate("/", { replace: true });
+      navigate(searchParams.has("invite") ? "/invite" : "/", { replace: true });
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : "Não foi possível entrar",
@@ -61,6 +63,7 @@ export function AuthPage() {
               : "Entre para acompanhar suas auditorias."}
           </p>
           <form onSubmit={submit}>
+            {register && <label>Seu nome<input value={displayName} minLength={2} maxLength={120} required autoComplete="name" onChange={(event) => setDisplayName(event.target.value)} /></label>}
             <label>
               E-mail
               <input

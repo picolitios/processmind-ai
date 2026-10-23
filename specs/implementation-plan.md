@@ -14,6 +14,8 @@ até autorização específica e validação de VM/hostname/segredos; o guia
 
 ## Plano curto
 
+`specs/architecture/team-invitations-and-finding-activity-v1.md` define a organização de alertas por item, a atividade de revisão e a equipe com nome e convite confirmado por e-mail. Mantém os papéis internos e o orçamento zero da demo.
+
 Evolução arquitetural pós-MVP: `specs/architecture/audit-events-v1.md` define o primeiro fluxo executável. A sequência, limites e rollback estão em `docs/architecture/migration-plan.md`. As Fases 0–8 abaixo são o histórico do MVP; não representam os estágios da evolução distribuída.
 Os primeiros recortes da Fase 2 estão em `specs/architecture/identity-boundary-v1.md`, `specs/architecture/membership-boundary-v1.md` e `specs/architecture/case-membership-lookup-v1.md`: processo e roteamento de identidade separados, sessão/CSRF, autorização de associação e referências de membros em casos via contratos privados. O estado atual do Compose já separa schemas e credenciais de runtime, conforme `specs/architecture/identity-schema-credential-boundary-v1.md`; as descrições dos incrementos abaixo registram seu escopo histórico.
 

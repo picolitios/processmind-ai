@@ -6,6 +6,7 @@ test("arquivo sintético gera os achados esperados", async ({ page }) => {
   const unique = Date.now().toString(36);
   await page.goto("/");
   await page.getByRole("button", { name: "Criar conta" }).click();
+  await page.getByLabel("Seu nome").fill("Usuário E2E");
   await page.getByLabel("E-mail").fill(`sample-${unique}@example.com`);
   await page.getByLabel("Senha").fill("senha-de-teste-12345");
   await page.getByRole("button", { name: "Criar conta", exact: true }).last().click();

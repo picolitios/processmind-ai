@@ -78,9 +78,9 @@ def assignee_membership(
 
 def case_views(db: DB, auth: Auth, cases: list[AuditCase]) -> list[dict[str, Any]]:
     member_ids = [case.assignee_membership_id for case in cases if case.assignee_membership_id]
-    users = (
+    members = (
         {
-            member.membership_id: member.user_id
+            member.membership_id: member
             for member in resolve_member_references(
                 db, auth, cases[0].organization_id, membership_ids=member_ids
             )
@@ -93,8 +93,14 @@ def case_views(db: DB, auth: Auth, cases: list[AuditCase]) -> list[dict[str, Any
             "id": case.id,
             "finding_id": case.finding_id,
             "status": case.status,
-            "assignee_user_id": users.get(case.assignee_membership_id)
-            if case.assignee_membership_id
+            "assignee_user_id": members[case.assignee_membership_id].user_id
+            if case.assignee_membership_id in members
+            else None,
+            "assignee_name": (
+                members[case.assignee_membership_id].display_name
+                or members[case.assignee_membership_id].email
+            )
+            if case.assignee_membership_id in members
             else None,
             "closure_reason": case.closure_reason,
             "opened_at": case.opened_at,
@@ -104,11 +110,14 @@ def case_views(db: DB, auth: Auth, cases: list[AuditCase]) -> list[dict[str, Any
     ]
 
 
-def comment_view(comment: CaseComment, author_id: uuid.UUID) -> dict[str, Any]:
+def comment_view(
+    comment: CaseComment, author_id: uuid.UUID, author_name: str | None = None
+) -> dict[str, Any]:
     return {
         "id": comment.id,
         "case_id": comment.case_id,
         "author_user_id": author_id,
+        "author_name": author_name,
         "body": comment.body,
         "created_at": comment.created_at,
     }
@@ -188,6 +197,73 @@ def review_finding(
     from app.features.audit.routes import get_finding
 
     return get_finding(organization_id, finding_id, db, auth)
+
+
+@router.get("/findings/{finding_id}/activity", tags=["findings"])
+def finding_activity(
+    organization_id: uuid.UUID,
+    finding_id: uuid.UUID,
+    db: DB,
+    auth: Auth,
+    limit: int = Query(20, ge=1, le=100),
+    cursor: str | None = None,
+) -> dict[str, Any]:
+    """Expose review reasons and linked case actions without changing stored events."""
+    require_membership(db, auth, organization_id)
+    finding = db.scalar(select(AuditFinding.id).where(
+        AuditFinding.organization_id == organization_id, AuditFinding.id == finding_id,
+    ))
+    if finding is None:
+        raise ApiError(404, "not_found", "Achado não encontrado")
+    case_id = db.scalar(select(AuditCase.id).where(
+        AuditCase.organization_id == organization_id, AuditCase.finding_id == finding_id,
+    ))
+    subjects = [and_(
+        BusinessAuditEvent.subject_type == "finding",
+        BusinessAuditEvent.subject_id == finding_id,
+    )]
+    if case_id is not None:
+        subjects.append(and_(
+            BusinessAuditEvent.subject_type == "case",
+            BusinessAuditEvent.subject_id == case_id,
+        ))
+    query = select(BusinessAuditEvent).where(
+        BusinessAuditEvent.organization_id == organization_id, or_(*subjects),
+    )
+    if cursor:
+        when, event_id = parse_cursor(cursor)
+        query = query.where(or_(
+            BusinessAuditEvent.occurred_at < when,
+            and_(BusinessAuditEvent.occurred_at == when, BusinessAuditEvent.id < event_id),
+        ))
+    events = db.scalars(
+        query.order_by(BusinessAuditEvent.occurred_at.desc(), BusinessAuditEvent.id.desc())
+        .limit(limit + 1)
+    ).all()
+    page = events[:limit]
+    authors = {
+        member.user_id: member.display_name or member.email
+        for member in resolve_member_references(
+            db, auth, organization_id,
+            user_ids=[event.actor_user_id for event in page if event.actor_user_id],
+        )
+    }
+    return {
+        "case_id": case_id,
+        "items": [
+            {
+                "id": event.id,
+                "action": event.action,
+                "actor_user_id": event.actor_user_id,
+                "actor_name": authors.get(event.actor_user_id) if event.actor_user_id else None,
+                "occurred_at": event.occurred_at,
+                "metadata": event.metadata_json,
+            }
+            for event in page
+        ],
+        "next_cursor": make_cursor(page[-1].occurred_at, page[-1].id)
+        if len(events) > limit else None,
+    }
 
 
 @router.get("/cases", tags=["cases"])
@@ -284,14 +360,19 @@ def case_detail(
         .limit(20)
     ).all()
     authors = {
-        member.membership_id: member.user_id
+        member.membership_id: member
         for member in resolve_member_references(
             db, auth, organization_id,
             membership_ids=[comment.author_membership_id for comment in comments],
         )
     }
     result["comments"] = [
-        comment_view(comment, authors[comment.author_membership_id]) for comment in comments
+        comment_view(
+            comment, authors[comment.author_membership_id].user_id,
+            authors[comment.author_membership_id].display_name
+            or authors[comment.author_membership_id].email,
+        )
+        for comment in comments
     ]
     events = db.scalars(
         select(BusinessAuditEvent)
@@ -303,12 +384,31 @@ def case_detail(
         .order_by(BusinessAuditEvent.occurred_at.desc(), BusinessAuditEvent.id.desc())
         .limit(50)
     ).all()
+    event_authors = {
+        member.user_id: member.display_name or member.email
+        for member in resolve_member_references(
+            db, auth, organization_id,
+            user_ids=[event.actor_user_id for event in events if event.actor_user_id],
+        )
+    }
     result["history"] = [
         {
             "action": event.action,
             "actor_user_id": event.actor_user_id,
+            "actor_name": (
+                event_authors.get(event.actor_user_id) if event.actor_user_id else None
+            ),
             "occurred_at": event.occurred_at,
-            "metadata": event.metadata_json,
+            "metadata": {
+                **event.metadata_json,
+                "reason": event.metadata_json.get("reason")
+                or (
+                    case.closure_reason
+                    if event.action == "case.status_changed"
+                    and event.metadata_json.get("to") in {"resolved", "dismissed"}
+                    else None
+                ),
+            },
         }
         for event in events
     ]
@@ -372,7 +472,7 @@ def patch_case(
             case,
             auth.user.id,
             "case.status_changed",
-            {"from": previous, "to": data.status},
+            {"from": previous, "to": data.status, "reason": data.closure_reason},
         )
     elif data.closure_reason is not None:
         raise ApiError(422, "invalid_reason", "Justificativa apenas no encerramento")
@@ -425,14 +525,21 @@ def list_comments(
     ).all()
     page = comments[:limit]
     authors = {
-        member.membership_id: member.user_id
+        member.membership_id: member
         for member in resolve_member_references(
             db, auth, organization_id,
             membership_ids=[comment.author_membership_id for comment in page],
         )
     }
     return {
-        "items": [comment_view(comment, authors[comment.author_membership_id]) for comment in page],
+        "items": [
+            comment_view(
+                comment, authors[comment.author_membership_id].user_id,
+                authors[comment.author_membership_id].display_name
+                or authors[comment.author_membership_id].email,
+            )
+            for comment in page
+        ],
         "next_cursor": make_cursor(page[-1].created_at, page[-1].id)
         if len(comments) > limit
         else None,

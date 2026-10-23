@@ -1,6 +1,6 @@
 export type Role = "owner" | "admin" | "analyst" | "viewer";
 export type Session = {
-  user: { id: string; email: string };
+  user: { id: string; email: string; display_name: string | null; email_verified: boolean };
   memberships: { organization_id: string; role: Role }[];
   csrf_token: string;
 };
@@ -44,6 +44,8 @@ export type Finding = {
   review_state: string;
   detected_at: string;
   explanation: string;
+  subject_key: string;
+  subject_label: string;
   evidence: Evidence[];
 };
 export type Case = {
@@ -51,6 +53,7 @@ export type Case = {
   finding_id: string;
   status: string;
   assignee_user_id: string | null;
+  assignee_name?: string | null;
   closure_reason: string | null;
   opened_at: string;
   closed_at: string | null;
@@ -61,6 +64,7 @@ export type Comment = {
   id: string;
   body: string;
   author_user_id: string;
+  author_name?: string | null;
   created_at: string;
 };
 export type Analytics = {

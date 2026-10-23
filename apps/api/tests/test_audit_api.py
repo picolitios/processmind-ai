@@ -389,6 +389,10 @@ def test_audit_idempotency_findings_and_tenant_isolation(
             "LATE_DELIVERY",
         }
         duplicate = next(item for item in findings if item["rule_code"] == "DUPLICATE")
+        assert duplicate["subject_key"] == "product:SKU-1"
+        assert "SKU-1" in duplicate["subject_label"]
+        late = next(item for item in findings if item["rule_code"] == "LATE_DELIVERY")
+        assert late["subject_key"] == "product:SKU-3"
         assert len(duplicate["evidence"]) == 2
         purchases = [item["data"]["purchase"] for item in duplicate["evidence"]]
         assert {item["purchase_id"] for item in purchases} == {"P-1", "P-2"}

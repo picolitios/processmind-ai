@@ -16,9 +16,11 @@ test('acesso e navegação móvel funcionam com teclado e foco visível', async 
 
   const unique = Date.now().toString(36)
   await page.getByRole('button', { name: 'Criar conta' }).click()
+  await page.getByLabel('Seu nome').fill('Usuário E2E')
   await email.fill(`a11y-${unique}@example.com`)
   await page.getByLabel('Senha').fill('senha-acessivel-12345')
   await page.getByRole('button', { name: 'Criar conta', exact: true }).last().click()
+  await expect(page.getByRole('heading', { name: 'Organizações', exact: true })).toBeVisible()
   await page.getByLabel('Nome').fill(`Acessibilidade ${unique}`)
   await page.getByLabel('Identificador').fill(`a11y-${unique}`)
   await page.getByRole('button', { name: 'Criar organização' }).click()

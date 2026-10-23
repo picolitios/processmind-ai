@@ -8,6 +8,7 @@ import { canWrite } from "../shell/Shell";
 import { Status } from "../imports/ImportsPage";
 import { AnalysisPanel } from "./AnalysisPanel";
 import { DuplicateComparison } from "./DuplicateComparison";
+import { FindingActivity } from "./FindingActivity";
 import { CopilotPanel } from "../copilot/CopilotPanel";
 
 export function FindingDetailPage() {
@@ -24,6 +25,7 @@ export function FindingDetailPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [busy, setBusy] = useState(false);
+  const [activeTab, setActiveTab] = useState<"details" | "activity">("details");
   async function openCase() {
     setError("");
     setBusy(true);
@@ -51,6 +53,7 @@ export function FindingDetailPage() {
       );
       setSuccess("Revisão registrada.");
       await detail.refetch();
+      setActiveTab("activity");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Falha ao revisar");
     } finally {
@@ -63,6 +66,7 @@ export function FindingDetailPage() {
         <div>
           <p className="eyebrow">DETALHE DO ALERTA</p>
           <h1>{detail.data?.rule_code || "Achado"}</h1>
+          {detail.data && <p className="muted">{detail.data.subject_label}</p>}
           <p className="muted">
             {detail.data && (
               <>
@@ -79,6 +83,15 @@ export function FindingDetailPage() {
       <QueryState loading={detail.isLoading} error={detail.error} />
       {detail.data && (
         <>
+          <div className="item-tabs" role="tablist" aria-label="Seções do alerta">
+            <button type="button" role="tab" aria-selected={activeTab === "details"}
+              className={activeTab === "details" ? "active" : ""}
+              onClick={() => setActiveTab("details")}>Detalhes</button>
+            <button type="button" role="tab" aria-selected={activeTab === "activity"}
+              className={activeTab === "activity" ? "active" : ""}
+              onClick={() => setActiveTab("activity")}>Justificativas e comentários</button>
+          </div>
+          {activeTab === "details" ? <>
           <section className="card">
             <h2>Por que este alerta foi gerado</h2>
             {detail.data.rule_code === "DUPLICATE" ? (
@@ -161,6 +174,9 @@ export function FindingDetailPage() {
                 <Feedback error={error} success={success} />
               </section>
             )}
+          </> : (
+            <FindingActivity organizationId={organizationId} findingId={findingId} />
+          )}
         </>
       )}
     </>

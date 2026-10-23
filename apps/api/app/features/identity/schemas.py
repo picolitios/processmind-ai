@@ -1,8 +1,8 @@
 import uuid
 from datetime import datetime
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, StringConstraints, field_validator
 
 from app.core.audit_config_contract import AuditConfigFields
 
@@ -12,6 +12,9 @@ MemberStatus = Literal["active", "inactive"]
 
 class RegisterInput(BaseModel):
     email: EmailStr
+    display_name: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=2, max_length=120)
+    ] | None = None
     password: str = Field(min_length=12, max_length=128)
 
     @field_validator("password")
@@ -30,6 +33,14 @@ class LoginInput(BaseModel):
 class UserView(BaseModel):
     id: uuid.UUID
     email: EmailStr
+    display_name: str | None = None
+    email_verified: bool = False
+
+
+class ProfileInput(BaseModel):
+    display_name: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=2, max_length=120)
+    ]
 
 
 class MemberView(BaseModel):
@@ -38,6 +49,8 @@ class MemberView(BaseModel):
     role: Role
     status: MemberStatus
     created_at: datetime
+    display_name: str | None = None
+    email: EmailStr | None = None
 
 
 class MemberPage(BaseModel):
@@ -83,3 +96,27 @@ class MemberInput(BaseModel):
 class MemberPatch(BaseModel):
     role: Role | None = None
     status: MemberStatus | None = None
+
+
+InviteRole = Literal["admin", "analyst", "viewer"]
+
+
+class InviteInput(BaseModel):
+    email: EmailStr
+    role: InviteRole
+
+
+class InviteView(BaseModel):
+    id: uuid.UUID
+    organization_id: uuid.UUID
+    email: EmailStr
+    role: InviteRole
+    created_at: datetime
+    expires_at: datetime
+    sent_at: datetime | None
+    accepted_at: datetime | None
+    cancelled_at: datetime | None
+
+
+class AcceptInviteInput(BaseModel):
+    token: str = Field(min_length=40, max_length=128)

@@ -8,6 +8,9 @@ services:
     ports: !override []
   identity:
     ports: !override []
+  mailpit:
+    ports: !override
+      - "127.0.0.1:8026:8025"
   web:
     ports: !override
       - "127.0.0.1:5174:80"

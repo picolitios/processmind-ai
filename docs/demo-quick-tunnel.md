@@ -53,6 +53,10 @@ local nem adicione encaminhamento de portas. `APP_ENV=demo` mantém os cookies
 `Secure`. O modelo local é opcional; o endpoint de Ollama no demo aponta a um
 serviço indisponível para acionar o fallback explícito, sem API paga.
 
+Os convites de equipe enviados na demo são capturados no Mailpit em
+`http://127.0.0.1:8026`, acessível apenas neste computador. Use o link recebido
+ali para entrar pelo endereço público do túnel; o Mailpit não entrega e-mails reais.
+
 ## Ativar o copiloto com modelo local
 
 No Windows com Docker Desktop, instale o
