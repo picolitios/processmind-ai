@@ -33,4 +33,11 @@ test('acesso e navegação móvel funcionam com teclado e foco visível', async 
   await expect(page.getByRole('heading', { name: 'Importações' })).toBeVisible()
   await assertAccessible(page)
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+
+  await page.getByRole('button', { name: 'Ativar modo escuro' }).click()
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+  await page.reload()
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+  await assertAccessible(page)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
 })

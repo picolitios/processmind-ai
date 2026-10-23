@@ -4,6 +4,7 @@ import { NavLink, Outlet, useLocation, useNavigate, useParams } from "react-rout
 import { useAuth } from "../auth/AuthProvider";
 import { useResource } from "../../lib/useResource";
 import type { Organization, Role } from "../../lib/api";
+import { ThemeToggle } from "../theme/ThemeProvider";
 
 const nav = [
   ["dashboard", "Visão geral", "◫"],
@@ -125,7 +126,10 @@ export function Shell() {
           <span className="breadcrumb">
             Workspace <span>/</span> {current?.name || "Organizações"}
           </span>
-          <span className="topbar-right">{roleLabel(role)}</span>
+          <div className="topbar-actions">
+            <ThemeToggle />
+            <span className="topbar-right">{roleLabel(role)}</span>
+          </div>
         </header>
         <main className="page">
           {organizationId && (

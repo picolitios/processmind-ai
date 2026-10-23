@@ -101,29 +101,29 @@ export function DashboardPage() {
                         >
                           <stop
                             offset="0%"
-                            stopColor="#19a695"
+                            stopColor="var(--chart-line)"
                             stopOpacity={0.26}
                           />
                           <stop
                             offset="100%"
-                            stopColor="#19a695"
+                            stopColor="var(--chart-line)"
                             stopOpacity={0}
                           />
                         </linearGradient>
                       </defs>
-                      <CartesianGrid stroke="#e7ebe9" vertical={false} />
+                      <CartesianGrid stroke="var(--border)" vertical={false} />
                       <XAxis
                         dataKey="date"
                         tickFormatter={(value) => String(value).slice(5)}
-                        stroke="#82918e"
+                        stroke="var(--muted)"
                       />
-                      <YAxis allowDecimals={false} stroke="#82918e" />
+                      <YAxis allowDecimals={false} stroke="var(--muted)" />
                       <Tooltip />
                       <Area
                         type="monotone"
                         dataKey="count"
                         name="Achados"
-                        stroke="#129d8d"
+                        stroke="var(--chart-line)"
                         strokeWidth={3}
                         fill="url(#chartFill)"
                       />

@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router";
 import { api, json } from "../../lib/api";
 import { Feedback } from "../../lib/useResource";
 import { useAuth } from "./AuthProvider";
+import { ThemeToggle } from "../theme/ThemeProvider";
 
 export function AuthPage() {
   const { login } = useAuth();
@@ -54,6 +55,7 @@ export function AuthPage() {
         </div>
       </div>
       <section className="auth-panel">
+        <div className="auth-theme"><ThemeToggle /></div>
         <div className="auth-card">
           <p className="eyebrow">ACESSO À PLATAFORMA</p>
           <h2>{register ? "Criar conta" : "Bem-vindo de volta"}</h2>
