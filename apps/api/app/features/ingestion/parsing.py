@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from openpyxl import load_workbook  # type: ignore[import-untyped]
+from openpyxl.utils.exceptions import InvalidFileException  # type: ignore[import-untyped]
 
 from app.core.errors import ApiError
 
@@ -92,18 +93,20 @@ def table_rows(
             raise ApiError(422, "invalid_file", "CSV inválido") from exc
     else:
         try:
-            workbook = load_workbook(path, read_only=True, data_only=False, keep_links=False)
-            try:
-                sheet = workbook.active
-                if sheet is None:
-                    raise ApiError(422, "invalid_file", "Planilha vazia")
-                for row in sheet.iter_rows():
-                    if any(cell.data_type == "f" for cell in row):
-                        raise ApiError(422, "unsafe_file", "Fórmulas não são permitidas")
-                    yield ["" if cell.value is None else str(cell.value) for cell in row]
-            finally:
-                workbook.close()
-        except (ValueError, KeyError, zipfile.BadZipFile) as exc:
+            # Uploads use opaque storage keys, so pass a stream instead of an extensionless path.
+            with path.open("rb") as source:
+                workbook = load_workbook(source, read_only=True, data_only=False, keep_links=False)
+                try:
+                    sheet = workbook.active
+                    if sheet is None:
+                        raise ApiError(422, "invalid_file", "Planilha vazia")
+                    for row in sheet.iter_rows():
+                        if any(cell.data_type == "f" for cell in row):
+                            raise ApiError(422, "unsafe_file", "Fórmulas não são permitidas")
+                        yield ["" if cell.value is None else str(cell.value) for cell in row]
+                finally:
+                    workbook.close()
+        except (ValueError, KeyError, zipfile.BadZipFile, InvalidFileException) as exc:
             raise ApiError(422, "invalid_file", "XLSX inválido") from exc
 
 
