@@ -390,7 +390,15 @@ def test_audit_idempotency_findings_and_tenant_isolation(
         }
         duplicate = next(item for item in findings if item["rule_code"] == "DUPLICATE")
         assert len(duplicate["evidence"]) == 2
-        assert owner.get(f"{base}/findings/{duplicate['id']}").status_code == 200
+        purchases = [item["data"]["purchase"] for item in duplicate["evidence"]]
+        assert {item["purchase_id"] for item in purchases} == {"P-1", "P-2"}
+        assert {item["product_id"] for item in purchases} == {"SKU-1"}
+        assert {item["supplier_id"] for item in purchases} == {"S-1"}
+        assert {item["declared_total"] for item in purchases} == {"20.00"}
+        assert {item["import_id"] for item in purchases} == {import_id}
+        detail = owner.get(f"{base}/findings/{duplicate['id']}")
+        assert detail.status_code == 200
+        assert detail.json()["evidence"] == duplicate["evidence"]
         assert outsider.get(f"{base}/findings/{duplicate['id']}").status_code == 404
         assert len(owner.get(f"{base}/findings", params={"severity": "high"}).json()["items"]) == 1
         first_page = owner.get(f"{base}/findings", params={"audit_id": audit_id, "limit": 1}).json()
@@ -443,6 +451,9 @@ def test_audit_idempotency_findings_and_tenant_isolation(
             body = json.loads(request.data)  # type: ignore[attr-defined]
             assert body["stream"] is False
             assert body["format"]["type"] == "object"
+            if body["messages"][1]["content"].find(str(duplicate["id"])) != -1:
+                assert '"purchase_id": "P-1"' in body["messages"][1]["content"]
+                assert '"purchase_id": "P-2"' in body["messages"][1]["content"]
             return io.BytesIO(
                 json.dumps(
                     {

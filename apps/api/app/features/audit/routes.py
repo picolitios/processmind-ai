@@ -2,6 +2,7 @@ import base64
 import json
 import uuid
 from collections import defaultdict
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any, Literal
 
@@ -11,6 +12,7 @@ from sqlalchemy import and_, or_, select
 
 from app.core.config import settings
 from app.core.errors import ApiError
+from app.features.audit.evidence import duplicate_purchase_facts, evidence_data
 from app.features.audit.models import AuditConfiguration, AuditFinding, AuditRun, FindingEvidence
 from app.features.audit.outbox import OutboxEvent
 from app.features.audit.rules import RULE_VERSION
@@ -59,7 +61,11 @@ def make_cursor(when: datetime, item_id: uuid.UUID) -> str:
     return base64.urlsafe_b64encode(value.encode()).decode().rstrip("=")
 
 
-def finding_view(finding: AuditFinding, evidence: list[FindingEvidence]) -> dict[str, Any]:
+def finding_view(
+    finding: AuditFinding,
+    evidence: Sequence[FindingEvidence],
+    purchase_facts: dict[uuid.UUID, dict[str, Any]],
+) -> dict[str, Any]:
     return {
         "id": finding.id,
         "audit_id": finding.run_id,
@@ -75,7 +81,7 @@ def finding_view(finding: AuditFinding, evidence: list[FindingEvidence]) -> dict
                 "type": "purchase" if item.purchase_id else "import_row",
                 "purchase_id": item.purchase_id,
                 "import_row_id": item.import_row_id,
-                "data": item.evidence_json,
+                "data": evidence_data(finding, item, purchase_facts),
             }
             for item in evidence
         ],
@@ -263,8 +269,12 @@ def list_findings(
             .order_by(FindingEvidence.id)
         ):
             evidence_by_finding[item.finding_id].append(item)
+    page_evidence = [item for group in evidence_by_finding.values() for item in group]
+    purchase_facts = duplicate_purchase_facts(db, organization_id, page, page_evidence)
     return {
-        "items": [finding_view(item, evidence_by_finding[item.id]) for item in page],
+        "items": [
+            finding_view(item, evidence_by_finding[item.id], purchase_facts) for item in page
+        ],
         "next_cursor": make_cursor(page[-1].detected_at, page[-1].id)
         if len(findings) > limit
         else None,
@@ -295,4 +305,5 @@ def get_finding(
         )
         .order_by(FindingEvidence.id)
     ).all()
-    return finding_view(finding, list(evidence))
+    purchase_facts = duplicate_purchase_facts(db, organization_id, [finding], evidence)
+    return finding_view(finding, evidence, purchase_facts)

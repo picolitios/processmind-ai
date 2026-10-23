@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.errors import ApiError
+from app.features.audit.evidence import duplicate_purchase_facts, evidence_data
 from app.features.audit.models import AuditFinding, AuditRun, FindingEvidence
 
 
@@ -57,14 +58,17 @@ def build_ai_context(
     partial = len(findings) > 20 or len(evidence) > 50
     evidence = evidence[:50]
     allowed = {item.id for item in evidence}
+    findings_by_id = {item.id: item for item in selected}
+    purchase_facts = duplicate_purchase_facts(db, organization_id, selected, evidence)
     grouped: dict[uuid.UUID, list[dict[str, Any]]] = {item.id: [] for item in selected}
     for item in evidence:
-        data = json.dumps(item.evidence_json, ensure_ascii=False, sort_keys=True, default=str)
+        selected_data = evidence_data(findings_by_id[item.finding_id], item, purchase_facts)
+        data = json.dumps(selected_data, ensure_ascii=False, sort_keys=True, default=str)
         truncated = len(data.encode("utf-8")) > 2048
         grouped[item.finding_id].append(
             {
                 "id": str(item.id),
-                "data": {"truncated": True} if truncated else item.evidence_json,
+                "data": {"truncated": True} if truncated else selected_data,
             }
         )
         partial = partial or truncated
