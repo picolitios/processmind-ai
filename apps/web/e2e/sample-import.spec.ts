@@ -53,7 +53,9 @@ test("arquivo sintético gera os achados esperados", async ({ page }) => {
   for (const rule of ["DUPLICATE", "TOTAL_MISMATCH", "LATE_DELIVERY"]) {
     await expect(page.getByRole("link", { name: new RegExp(rule) })).toBeVisible({ timeout: 60_000 });
   }
+  await page.getByRole("link", { name: /LATE_DELIVERY/ }).click();
+  await expect(page.getByText("Atraso verificado:")).toContainText("6 dias");
   await page.reload();
   await page.getByRole("button", { name: "Voltar à tela anterior" }).click();
-  await expect(page.getByRole("heading", { name: "Auditorias", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Achados", exact: true })).toBeVisible();
 });

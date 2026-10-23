@@ -61,13 +61,13 @@ export function AnalysisPanel({
         A IA sugere verificações. A decisão continua com a equipe e a auditoria
         funciona sem ela.
       </p>
-      {canRequest && !analysisId && (
+      {canRequest && (!analysisId || analysis.data?.status === "failed") && (
         <button
           className="button secondary"
           disabled={busy}
           onClick={() => void request()}
         >
-          {busy ? "Solicitando…" : "Gerar explicação"}
+          {busy ? "Solicitando…" : analysisId ? "Tentar novamente" : "Gerar explicação"}
         </button>
       )}
       <Feedback error={error} />

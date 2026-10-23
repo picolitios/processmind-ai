@@ -4,6 +4,7 @@ import time
 import urllib.error
 import urllib.request
 import uuid
+from collections.abc import Callable
 from typing import Any
 
 from pydantic import BaseModel, ValidationError
@@ -25,7 +26,14 @@ SYSTEM_MESSAGE = (
     "não afirme fraude nem invente dados. Para DUPLICATE, compare os campos das duas compras, "
     "explique que IDs de compra distintos e dados iguais indicam possível duplicidade, "
     "não um erro confirmado; indique quais documentos verificar para decidir. "
+    "Para LATE_DELIVERY, informe days_late e as datas previstas e reais "
+    "quando constarem da evidência. Em evidence_ids, use apenas IDs presentes em "
+    "allowed_evidence_ids; IDs de achado e compra não são IDs de evidência. "
     "Responda apenas com o JSON do schema solicitado."
+)
+RETRY_MESSAGE = (
+    " A resposta anterior não passou na validação. Gere novamente o JSON completo, "
+    "com pelo menos um evidence_id copiado exatamente de allowed_evidence_ids."
 )
 _transport_failures = 0
 _circuit_open_until = 0.0
@@ -83,9 +91,29 @@ def call_structured[ResultModel: BaseModel](
     return schema.model_validate_json(content), str(envelope.get("model", model))[:120]
 
 
-def _call_ollama(context: dict[str, Any], model: str) -> tuple[AIResult, str]:
+def _call_ollama(
+    context: dict[str, Any], model: str, retry: bool = False,
+) -> tuple[AIResult, str]:
     """Preserve the existing explanation contract over the shared transport."""
-    return call_structured(context, model, AIResult, SYSTEM_MESSAGE)
+    return call_structured(
+        context, model, AIResult, SYSTEM_MESSAGE + (RETRY_MESSAGE if retry else ""),
+    )
+
+
+def call_verified[ResultModel: BaseModel](
+    invoke: Callable[[bool], tuple[ResultModel, str]],
+    validate: Callable[[ResultModel], None],
+) -> tuple[ResultModel, str]:
+    """Retry one malformed model answer without weakening evidence validation."""
+    for retry in (False, True):
+        try:
+            result, model = invoke(retry)
+            validate(result)
+            return result, model
+        except (ValueError, ValidationError, TypeError, KeyError):
+            if retry:
+                raise
+    raise AssertionError("unreachable")
 
 
 def process_ai_job(db: Session, job_id: uuid.UUID) -> None:
@@ -116,11 +144,14 @@ def process_ai_job(db: Session, job_id: uuid.UUID) -> None:
         analysis.limitation = "Dados insuficientes: nenhum achado com evidência disponível."
         job.error_code = "insufficient_evidence"
     else:
+        context["allowed_evidence_ids"] = sorted(str(value) for value in allowed)
         serialized = json.dumps(context, ensure_ascii=False, sort_keys=True).encode("utf-8")
         analysis.evidence_hash = hashlib.sha256(serialized).hexdigest()
         try:
-            result, model = _call_ollama(context, analysis.model)
-            result.validate_evidence(allowed)
+            result, model = call_verified(
+                lambda retry: _call_ollama(context, analysis.model, retry),
+                lambda value: value.validate_evidence(allowed),
+            )
             analysis.response_json = result.model_dump(mode="json")
             analysis.model_version = model
             analysis.status = job.status = "succeeded"

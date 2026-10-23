@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate, useOutletContext, useParams } from "react-router";
 import { api, json, orgPath } from "../../lib/api";
-import type { Finding, Case } from "../../lib/api";
+import type { Finding, Case, Evidence } from "../../lib/api";
 import { Feedback, QueryState, useResource } from "../../lib/useResource";
 import type { ShellContext } from "../shell/Shell";
 import { canWrite } from "../shell/Shell";
@@ -10,6 +10,22 @@ import { AnalysisPanel } from "./AnalysisPanel";
 import { DuplicateComparison } from "./DuplicateComparison";
 import { FindingActivity } from "./FindingActivity";
 import { CopilotPanel } from "../copilot/CopilotPanel";
+
+// Present the rule's verified delay independently of the optional model answer.
+function LateDeliverySummary({ evidence }: { evidence: Evidence[] }) {
+  const delays = evidence.map((item) => item.data).filter((data) =>
+    typeof data.days_late === "number" && Number.isInteger(data.days_late) && data.days_late > 0
+  );
+  if (!delays.length) return null;
+  return <div className="notice">
+    {delays.map((data, index) => <p key={index}>
+      Atraso verificado: <strong>{String(data.days_late)} {data.days_late === 1 ? "dia" : "dias"}</strong>.
+      {typeof data.expected_delivery_date === "string" && typeof data.actual_delivery_date === "string"
+        ? ` Entrega prevista para ${data.expected_delivery_date}; concluída em ${data.actual_delivery_date}.`
+        : null}
+    </p>)}
+  </div>;
+}
 
 export function FindingDetailPage() {
   const { organizationId, role } = useOutletContext<ShellContext>();
@@ -96,6 +112,9 @@ export function FindingDetailPage() {
             <h2>Por que este alerta foi gerado</h2>
             {detail.data.rule_code === "DUPLICATE" ? (
               <DuplicateComparison evidence={detail.data.evidence} />
+            ) : null}
+            {detail.data.rule_code === "LATE_DELIVERY" ? (
+              <LateDeliverySummary evidence={detail.data.evidence} />
             ) : null}
             <p>{detail.data.explanation}</p>
           </section>

@@ -7,7 +7,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.features.ai.schemas import AIInput, AIResult
-from app.features.ai.worker import _call_ollama
+from app.features.ai.worker import _call_ollama, call_verified
 
 
 def test_schema_rejects_extra_fields_and_unverified_citations() -> None:
@@ -40,6 +40,33 @@ def test_schema_rejects_extra_fields_and_unverified_citations() -> None:
         AIInput.model_validate({"finding_id": str(uuid.uuid4()), "audit_id": str(uuid.uuid4())})
     with pytest.raises(ValidationError):
         AIInput.model_validate({"finding_id": None, "audit_id": str(uuid.uuid4())})
+
+
+def test_invalid_citation_gets_one_retry_without_accepting_unverified_ids() -> None:
+    allowed = uuid.uuid4()
+    invented = uuid.uuid4()
+    attempts: list[bool] = []
+
+    def invoke(retry: bool) -> tuple[AIResult, str]:
+        attempts.append(retry)
+        evidence_id = allowed if retry else invented
+        return AIResult(
+            summary="Entrega após o prazo.", possible_causes=[], suggested_checks=[],
+            corrective_actions=[], evidence_ids=[evidence_id],
+        ), "test-model"
+
+    result, _ = call_verified(invoke, lambda value: value.validate_evidence({allowed}))
+    assert result.evidence_ids == [allowed]
+    assert attempts == [False, True]
+
+    with pytest.raises(ValueError, match="invalid_evidence_reference"):
+        call_verified(
+            lambda retry: (AIResult(
+                summary="Entrega após o prazo.", possible_causes=[], suggested_checks=[],
+                corrective_actions=[], evidence_ids=[invented],
+            ), "test-model"),
+            lambda value: value.validate_evidence({allowed}),
+        )
 
 
 def test_prompt_injection_stays_in_data_and_unknown_citation_is_rejected(
