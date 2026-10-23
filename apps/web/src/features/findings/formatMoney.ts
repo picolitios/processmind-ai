@@ -7,7 +7,7 @@ function currencyDecimals(currency: unknown): number {
   if (typeof currency !== "string") return 2;
   try {
     return new Intl.NumberFormat("en", { style: "currency", currency })
-      .resolvedOptions().minimumFractionDigits;
+      .resolvedOptions().minimumFractionDigits ?? 2;
   } catch {
     return 2;
   }
