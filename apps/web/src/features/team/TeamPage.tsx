@@ -72,7 +72,7 @@ export function TeamPage() {
       <form onSubmit={(event) => { event.preventDefault(); void act(async () => { await api(orgPath(organizationId, "/invitations"), json("POST", { email, role: inviteRole })); setEmail(""); }, "Convite enviado."); }}>
         <label>E-mail<input type="email" value={email} required onChange={(event) => setEmail(event.target.value)} /></label>
         <label>Cargo<select value={inviteRole} onChange={(event) => setInviteRole(event.target.value as typeof inviteRole)}><option value="viewer">Funcionário</option><option value="analyst">Líder</option><option value="admin">Administrador</option></select></label>
-        <button className="button primary" disabled={busy}>Enviar convite</button>
+        <button className="button primary" disabled={busy || invites.isLoading}>Enviar convite</button>
       </form>
       <h3>Convites pendentes</h3>
       <QueryState loading={invites.isLoading} error={invites.error} />
