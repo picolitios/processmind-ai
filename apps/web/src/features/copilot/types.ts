@@ -2,6 +2,7 @@ export type CopilotMode = "normal" | "temporary";
 export type CopilotPolicy = {
   temporary_default: boolean;
   memory_turn_limit: number;
+  instructions: string;
 };
 export type CopilotConversation = {
   id: string;

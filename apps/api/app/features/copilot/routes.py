@@ -9,6 +9,7 @@ from app.core.errors import ApiError
 from app.features.audit.ai_context import validate_ai_target
 from app.features.audit.models import AuditFinding, AuditRun, FindingEvidence
 from app.features.audit.routes import make_cursor
+from app.features.audit_trail.events import append_business_event
 from app.features.copilot.models import CopilotConversation, CopilotPolicy, CopilotTurn
 from app.features.copilot.schemas import ConversationInput, PolicyInput, QuestionInput
 from app.features.identity.client import BusinessAuth as Auth
@@ -29,6 +30,7 @@ def policy_view(policy: CopilotPolicy | None) -> dict[str, Any]:
     return {
         "temporary_default": policy.temporary_default if policy else False,
         "memory_turn_limit": policy.memory_turn_limit if policy else 10,
+        "instructions": policy.instructions if policy else "",
     }
 
 
@@ -140,6 +142,13 @@ def put_policy(
         db.add(policy)
     policy.temporary_default = data.temporary_default
     policy.memory_turn_limit = data.memory_turn_limit
+    if data.instructions is not None:
+        policy.instructions = data.instructions
+    # Registra a alteração sem copiar o texto das instruções para a trilha.
+    append_business_event(
+        db, organization_id, auth.user.id, "copilot.policy_updated",
+        "copilot_policy", organization_id,
+    )
     db.commit()
     return policy_view(policy)
 

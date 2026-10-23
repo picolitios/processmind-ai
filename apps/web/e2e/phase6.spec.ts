@@ -206,7 +206,8 @@ test("cadastro até resolução de um caso", async ({ page }) => {
   await page.getByRole("link", { name: "Configurações" }).click();
   await expect(page.getByRole("heading", { name: "Configurações" })).toBeVisible();
   await assertAccessible(page);
+  await page.getByRole("tab", { name: "IA", exact: true }).click();
   await page.getByLabel("Iniciar chats no modo temporário por padrão").check();
   await page.getByRole("button", { name: "Salvar política do copiloto" }).click();
-  await expect(page.getByText("Política do copiloto salva.")).toBeVisible();
+  await expect(page.getByText("Configurações da IA salvas.", { exact: false })).toBeVisible();
 });

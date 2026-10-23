@@ -4,7 +4,7 @@ import { api, orgPath } from "../../lib/api";
 import { Feedback, QueryState, useResource } from "../../lib/useResource";
 import type { CopilotApproval, CopilotPolicy } from "./types";
 
-// Owners and admins manage memory defaults and pending saved-chat requests here.
+// Proprietários e administradores definem o comportamento da IA nesta organização.
 export function CopilotSettings({ organizationId }: { organizationId: string }) {
   const base = orgPath(organizationId, "/ai/copilot");
   const policy = useResource<CopilotPolicy>(
@@ -15,6 +15,7 @@ export function CopilotSettings({ organizationId }: { organizationId: string }) 
   );
   const [temporaryDefault, setTemporaryDefault] = useState(false);
   const [memoryLimit, setMemoryLimit] = useState(10);
+  const [instructions, setInstructions] = useState("");
   const [busy, setBusy] = useState(false);
   const [decidingId, setDecidingId] = useState("");
   const [error, setError] = useState("");
@@ -23,6 +24,7 @@ export function CopilotSettings({ organizationId }: { organizationId: string }) 
     if (policy.data) {
       setTemporaryDefault(policy.data.temporary_default);
       setMemoryLimit(policy.data.memory_turn_limit);
+      setInstructions(policy.data.instructions);
     }
   }, [policy.data]);
 
@@ -38,10 +40,11 @@ export function CopilotSettings({ organizationId }: { organizationId: string }) 
         body: JSON.stringify({
           temporary_default: temporaryDefault,
           memory_turn_limit: memoryLimit,
+          instructions,
         }),
       });
       await policy.refetch();
-      setSuccess("Política do copiloto salva.");
+      setSuccess("Configurações da IA salvas. As instruções valerão para as próximas respostas.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Não foi possível salvar a política.");
     } finally {
@@ -67,15 +70,23 @@ export function CopilotSettings({ organizationId }: { organizationId: string }) 
 
   return (
     <section className="card copilot-settings">
-      <h2>Copiloto conversacional</h2>
+      <h2>Configurar IA</h2>
       <p className="muted">
-        Chats normais podem compor a memória compartilhada desta organização.
-        Evidências citadas são verificadas antes de cada resposta.
+        Defina como o copiloto e a explicação dos alertas devem responder nesta empresa.
+        As instruções valem para novas respostas; evidências e citações continuam obrigatórias.
       </p>
       <QueryState loading={policy.isLoading} error={policy.error} />
       <Feedback error={error} success={success} />
       {policy.data && (
         <form onSubmit={save}>
+          <label>
+            Instruções da empresa para a IA
+            <textarea rows={7} maxLength={2000} value={instructions}
+              placeholder="Ex.: Responda de forma objetiva, explique os dados encontrados e sugira verificações para a equipe."
+              onChange={(event) => setInstructions(event.target.value)} />
+          </label>
+          <p className="muted">{instructions.length}/2000 caracteres. Apague o texto para voltar ao padrão.</p>
+          <h3>Memória e chats</h3>
           <label className="copilot-checkbox">
             <input type="checkbox" checked={temporaryDefault}
               onChange={(event) => setTemporaryDefault(event.target.checked)} />

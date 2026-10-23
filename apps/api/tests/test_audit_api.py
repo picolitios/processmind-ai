@@ -414,6 +414,12 @@ def test_audit_idempotency_findings_and_tenant_isolation(
         assert next_page["items"][0]["id"] != first_page["items"][0]["id"]
 
         evidence_id = duplicate["evidence"][0]["id"]
+        policy_response = owner.put(
+            f"{base}/ai/copilot/policy", headers=csrf_headers(token),
+            json={"temporary_default": False, "memory_turn_limit": 10,
+                  "instructions": "Use frases curtas para a equipe."},
+        )
+        assert policy_response.status_code == 200
         ai_base = f"{base}/ai/analyses"
         ai_headers = {**csrf_headers(token), "Idempotency-Key": uuid.uuid4().hex}
         created_ai = owner.post(ai_base, headers=ai_headers, json={"finding_id": duplicate["id"]})
@@ -455,6 +461,7 @@ def test_audit_idempotency_findings_and_tenant_isolation(
             body = json.loads(request.data)  # type: ignore[attr-defined]
             assert body["stream"] is False
             assert body["format"]["type"] == "object"
+            assert "Use frases curtas para a equipe." in body["messages"][0]["content"]
             if body["messages"][1]["content"].find(str(duplicate["id"])) != -1:
                 assert '"purchase_id": "P-1"' in body["messages"][1]["content"]
                 assert '"purchase_id": "P-2"' in body["messages"][1]["content"]
