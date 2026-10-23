@@ -3,6 +3,7 @@ import threading
 import uuid
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
+from io import BytesIO
 from pathlib import Path
 
 import pytest
@@ -184,6 +185,44 @@ def test_preview_rejects_malicious_and_malformed_files(tmp_path: Path) -> None:
         archive.writestr("xl/externalLinks/externalLink1.xml", "x")
     with pytest.raises(ApiError):
         preview(external, "xlsx")
+
+
+def test_preview_reads_xlsx_from_extensionless_private_path(tmp_path: Path) -> None:
+    book = Workbook()
+    book.active.append(HEADERS.strip().split(","))
+    book.active.append(VALID.strip().split(","))
+    private_path = tmp_path / uuid.uuid4().hex
+    book.save(private_path)
+
+    result = preview(private_path, "xlsx")
+    assert result["headers"] == HEADERS.strip().split(",")
+    assert result["rows"] == [VALID.strip().split(",")]
+
+
+@pytest.mark.skipif(os.getenv("RUN_DB_TESTS") != "1", reason="PostgreSQL required")
+def test_xlsx_upload_uses_extensionless_private_storage(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(settings, "upload_dir", str(tmp_path))
+    book = Workbook()
+    book.active.append(HEADERS.strip().split(","))
+    book.active.append(VALID.strip().split(","))
+    payload = BytesIO()
+    book.save(payload)
+
+    with TestClient(app) as client:
+        token = login(client, create_user(client, "xlsx-importer"))
+        org_id = create_org(client, token, "xlsx-import-org")
+        base = f"/api/v1/organizations/{org_id}/imports"
+        uploaded = client.post(
+            base,
+            headers=csrf_headers(token),
+            files={"file": ("compras.xlsx", payload.getvalue())},
+        )
+        assert uploaded.status_code == 201, uploaded.text
+        result = client.get(f"{base}/{uploaded.json()['id']}/preview")
+        assert result.status_code == 200
+        assert result.json()["rows"] == [VALID.strip().split(",")]
 
 
 def test_limits_and_numeric_overflow() -> None:
