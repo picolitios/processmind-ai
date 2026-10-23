@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api, json, orgPath } from "../../lib/api";
 import { Feedback, QueryState, useResource } from "../../lib/useResource";
+import { displayAiMoney } from "./formatMoney";
 
 type Analysis = {
   id: string;
@@ -86,7 +87,7 @@ export function AnalysisPanel({
                   {analysis.data.limitation ||
                     "Análise auxiliar; confira as evidências antes de decidir."}
                 </p>
-                {analysis.data.summary && <p>{analysis.data.summary}</p>}
+                {analysis.data.summary && <p>{displayAiMoney(analysis.data.summary)}</p>}
                 <AnalysisList
                   title="Possíveis causas"
                   items={analysis.data.possible_causes}
@@ -112,7 +113,7 @@ function AnalysisList({ title, items }: { title: string; items: string[] }) {
       <h3>{title}</h3>
       <ul>
         {items.map((item, index) => (
-          <li key={index}>{item}</li>
+          <li key={index}>{displayAiMoney(item)}</li>
         ))}
       </ul>
     </div>
