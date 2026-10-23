@@ -7,6 +7,8 @@ A propriedade e a migração gradual dos campos de configuração estão definid
 | Regra | Condição v1 | Severidade |
 | --- | --- | --- |
 | DUPLICATE | Mesmos fornecedor, produto, data, quantidade, preço unitário, total e moeda em compras distintas; o par é o alvo e ambas as compras são evidência. ID externo repetido na mesma importação já é erro de validação. | high |
+
+Na consulta de `DUPLICATE`, os campos comparados e a importação de cada compra são resolvidos das compras da mesma organização, inclusive para achados antigos. O alerta representa possível compra repetida, não prova de lançamento indevido: IDs externos diferentes não impedem o alerta, e duas compras legítimas podem coincidir. A revisão humana confronta pedidos, notas fiscais, recebimentos e pagamentos. Os dados de evidência persistidos permanecem imutáveis.
 | TOTAL_MISMATCH | Diferença absoluta entre total declarado e quantidade × preço unitário maior que 0,01. | medium |
 | INVALID_QUANTITY | Linha de origem com quantidade numérica não positiva; nunca cria `Purchase`. | medium |
 | PRICE_OUTLIER | Mesmo produto, moeda e unidade não vazia, dentro de ±90 dias. Exige 5 pares válidos além da compra avaliada. Fora de `mediana ± max(3×IQR, 4,4478×MAD, 25%×mediana)`. Sem amostra, o resultado é inconclusivo e não cria achado. | medium |

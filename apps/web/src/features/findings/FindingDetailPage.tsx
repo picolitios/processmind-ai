@@ -7,6 +7,7 @@ import type { ShellContext } from "../shell/Shell";
 import { canWrite } from "../shell/Shell";
 import { Status } from "../imports/ImportsPage";
 import { AnalysisPanel } from "./AnalysisPanel";
+import { DuplicateComparison } from "./DuplicateComparison";
 import { CopilotPanel } from "../copilot/CopilotPanel";
 
 export function FindingDetailPage() {
@@ -80,6 +81,9 @@ export function FindingDetailPage() {
         <>
           <section className="card">
             <h2>Por que este alerta foi gerado</h2>
+            {detail.data.rule_code === "DUPLICATE" ? (
+              <DuplicateComparison evidence={detail.data.evidence} />
+            ) : null}
             <p>{detail.data.explanation}</p>
           </section>
           <section className="card">
