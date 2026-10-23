@@ -1,3 +1,5 @@
+"""Processa importações e distribui jobs de fundo conforme o tipo de worker."""
+
 import logging
 import time
 import uuid
@@ -113,6 +115,7 @@ def process_job(db: Session, job_id: uuid.UUID) -> None:
     error_count = 0
     seen_purchase_ids: set[str] = set()
     supplier_ids: dict[str, uuid.UUID] = {}
+    # Cada linha vira um registro rastreável; somente linhas válidas geram compras.
     for number, values in rows:
         raw = dict(zip(headers, values, strict=False))
         normalized, errors = normalize(raw, mapping)
@@ -190,6 +193,7 @@ def process_job(db: Session, job_id: uuid.UUID) -> None:
                     else None,
                 )
             )
+        # Desanexa objetos periodicamente para limitar memória em arquivos grandes.
         if row_count % 500 == 0:
             db.flush()
             db.expunge_all()

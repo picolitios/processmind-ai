@@ -1,3 +1,5 @@
+"""Executa as regras de auditoria e persiste achados com suas evidências."""
+
 import uuid
 from datetime import UTC, datetime
 
@@ -64,6 +66,7 @@ def process_audit_job(
             ImportRow.errors != [],
         )
     ).all()
+    # A avaliação é determinística; o modelo de IA não decide se existe um achado.
     drafts, limitation = evaluate(list(purchases), list(rejected), run.config_snapshot, mappings)
     for draft in drafts:
         finding = AuditFinding(

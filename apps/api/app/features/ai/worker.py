@@ -1,3 +1,5 @@
+"""Consulta o Ollama para explicações opcionais e valida citações antes de salvar."""
+
 import hashlib
 import json
 import time
@@ -136,6 +138,7 @@ def process_ai_job(db: Session, job_id: uuid.UUID) -> None:
         db.commit()
         return
     analysis.status = "running"
+    # Seleciona apenas evidências do alvo e da organização antes de chamar o modelo.
     context, allowed, partial = build_ai_context(
         db, analysis.organization_id, analysis.finding_id, analysis.run_id
     )
@@ -148,6 +151,7 @@ def process_ai_job(db: Session, job_id: uuid.UUID) -> None:
         serialized = json.dumps(context, ensure_ascii=False, sort_keys=True).encode("utf-8")
         analysis.evidence_hash = hashlib.sha256(serialized).hexdigest()
         try:
+            # Uma resposta sem citação válida não é publicada como explicação.
             result, model = call_verified(
                 lambda retry: _call_ollama(context, analysis.model, retry),
                 lambda value: value.validate_evidence(allowed),

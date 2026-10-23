@@ -1,3 +1,5 @@
+"""Monta o contexto autorizado do chat e valida respostas citadas do copiloto."""
+
 import hashlib
 import json
 import uuid
@@ -188,6 +190,7 @@ def process_copilot_job(db: Session, job_id: uuid.UUID) -> None:
         db.commit()
         return
     turn.status = "running"
+    # Histórico e memória são revalidados no tenant; IDs permitidos acompanham o contexto.
     context, allowed, partial = build_copilot_context(db, conversation, turn)
     context["allowed_evidence_ids"] = sorted(str(value) for value in allowed)
     turn.context_hash = hashlib.sha256(_serialized(context)).hexdigest()
@@ -197,6 +200,7 @@ def process_copilot_job(db: Session, job_id: uuid.UUID) -> None:
         job.error_code = "insufficient_evidence"
     else:
         try:
+            # O texto só é salvo depois da validação de todas as citações.
             result, model = call_verified(
                 lambda retry: call_structured(
                     context, settings.ollama_model, CopilotResult,

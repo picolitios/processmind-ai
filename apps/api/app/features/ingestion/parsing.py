@@ -1,3 +1,5 @@
+"""Lê CSV/XLSX com limites e converte colunas mapeadas em valores validados."""
+
 import csv
 import re
 import zipfile

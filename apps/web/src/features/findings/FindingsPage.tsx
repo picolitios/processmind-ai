@@ -1,3 +1,4 @@
+// Agrupa alertas pelo item analisado e preserva filtros e paginação.
 import { useState } from "react";
 import { Link, useOutletContext } from "react-router";
 import { orgPath, query } from "../../lib/api";

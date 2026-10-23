@@ -1,3 +1,5 @@
+"""Publica pedidos de auditoria no RabbitMQ e confirma entregas ao consumidor."""
+
 import json
 import logging
 import time

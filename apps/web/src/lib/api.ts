@@ -1,3 +1,4 @@
+// Contratos compartilhados e cliente HTTP: envia a sessão e o token CSRF, e normaliza erros da API.
 export type Role = "owner" | "admin" | "analyst" | "viewer";
 export type Session = {
   user: { id: string; email: string; display_name: string | null; email_verified: boolean };

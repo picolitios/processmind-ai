@@ -1,3 +1,5 @@
+"""Monta a API de negócios e registra os domínios expostos ao frontend."""
+
 from fastapi import FastAPI
 
 from app.core.config import settings

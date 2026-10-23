@@ -1,3 +1,5 @@
+"""Recebe arquivos, apresenta a prévia e enfileira a importação confirmada."""
+
 import hashlib
 import uuid
 from pathlib import Path
@@ -87,6 +89,7 @@ async def upload_import(
         raise ApiError(422, "invalid_key", "Idempotency-Key inválida")
     if reimport_reason is not None and not (1 <= len(reimport_reason.strip()) <= 500):
         raise ApiError(422, "invalid_reason", "Motivo de reimportação inválido")
+    # Guarda o arquivo em caminho privado; a API só devolve metadados e a prévia validada.
     storage = Path(settings.upload_dir)
     storage.mkdir(parents=True, exist_ok=True, mode=0o700)
     key = uuid.uuid4().hex
@@ -105,6 +108,7 @@ async def upload_import(
             raise ApiError(422, "empty_file", "Arquivo vazio")
         preview(path, file_format)
         sha = hasher.hexdigest()
+        # Serializa a deduplicação por empresa antes de comparar hash e chave idempotente.
         lock_import_deduplication(db, organization_id)
         if idempotency_key:
             prior = db.scalar(

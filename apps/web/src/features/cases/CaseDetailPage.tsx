@@ -1,3 +1,4 @@
+// Permite acompanhar responsável, comentários e encerramento de um caso.
 import { useEffect, useState } from "react";
 import { Link, useOutletContext, useParams } from "react-router";
 import { api, json, orgPath, query } from "../../lib/api";
