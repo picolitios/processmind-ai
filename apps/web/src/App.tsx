@@ -1,3 +1,4 @@
+// Liga a sessão às rotas e carrega cada tela apenas quando ela é aberta.
 import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router";
 import { AuthProvider, useAuth } from "./features/auth/AuthProvider";

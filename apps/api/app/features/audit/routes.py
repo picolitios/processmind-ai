@@ -1,3 +1,5 @@
+"""Cria auditorias e consulta execuções, achados e evidências por organização."""
+
 import base64
 import json
 import uuid
@@ -123,6 +125,7 @@ def create_audit(
     ).all()
     if len(batches) != len(import_ids):
         raise ApiError(422, "invalid_imports", "Importações inexistentes ou não concluídas")
+    # Congela os parâmetros usados nesta execução, mesmo que a configuração mude depois.
     if settings.audit_config_mode == "owned":
         # The audit-owned row serializes settings apply and snapshot creation.
         audit_config = db.get(AuditConfiguration, organization_id, with_for_update=True)
@@ -166,6 +169,7 @@ def create_audit(
     db.add(job)
     db.flush()
     run.job_id = job.id
+    # Outbox e job são gravados juntos; o publicador envia o evento após o commit.
     if settings.audit_dispatch_mode == "broker":
         event_id = uuid.uuid4()
         db.add(

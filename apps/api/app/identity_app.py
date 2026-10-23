@@ -1,3 +1,5 @@
+"""Monta a API de identidade: sessão, organizações, membros e contratos internos."""
+
 from fastapi import FastAPI
 
 from app.core.http import configure_http

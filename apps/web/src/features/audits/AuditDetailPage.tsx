@@ -1,3 +1,4 @@
+// Mostra o resultado da auditoria, seus achados e o chat opcional desse alvo.
 import { Link, useOutletContext, useParams } from "react-router";
 import { orgPath, query } from "../../lib/api";
 import type { Audit, Finding, Page } from "../../lib/api";

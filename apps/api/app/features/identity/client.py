@@ -1,3 +1,5 @@
+"""Valida a sessão e o vínculo com a organização antes de acessar dados empresariais."""
+
 import time
 import uuid
 from datetime import UTC, datetime, timedelta

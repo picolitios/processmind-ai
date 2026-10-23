@@ -1,3 +1,5 @@
+"""Seleciona evidências da auditoria e valida as citações usadas nas respostas da IA."""
+
 import json
 import uuid
 from typing import Any

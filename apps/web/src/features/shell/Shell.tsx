@@ -1,3 +1,4 @@
+// Layout comum: seleciona a empresa e oferece navegação conforme o acesso do membro.
 import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate, useParams } from "react-router";
 import { useAuth } from "../auth/AuthProvider";

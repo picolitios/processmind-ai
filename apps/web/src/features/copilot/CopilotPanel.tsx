@@ -1,3 +1,4 @@
+// Mantém chats normais ou temporários e apresenta respostas com citações navegáveis.
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router";

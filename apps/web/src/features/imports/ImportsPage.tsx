@@ -1,3 +1,4 @@
+// Envia CSV/XLSX e acompanha o estado de cada importação da empresa.
 import { useState } from "react";
 import { Link, useOutletContext } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";

@@ -1,3 +1,4 @@
+// Gerencia nomes, cargos e convites que exigem confirmação por e-mail.
 import { useState } from "react";
 import { useOutletContext } from "react-router";
 import { useAuth } from "../auth/AuthProvider";

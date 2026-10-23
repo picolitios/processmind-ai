@@ -1,3 +1,5 @@
+"""Registra revisão humana, casos, comentários e histórico de decisões."""
+
 import uuid
 from datetime import UTC, datetime
 from typing import Annotated, Any, Literal

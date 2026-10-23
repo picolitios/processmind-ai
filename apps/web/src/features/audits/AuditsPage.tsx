@@ -1,3 +1,4 @@
+// Seleciona importações concluídas para iniciar uma auditoria e lista as execuções.
 import { useState } from "react";
 import { Link, useOutletContext } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";

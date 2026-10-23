@@ -1,3 +1,4 @@
+// Reúne evidências, explicação opcional e trilha de revisão de um achado.
 import { useState } from "react";
 import { useNavigate, useOutletContext, useParams } from "react-router";
 import { api, json, orgPath } from "../../lib/api";

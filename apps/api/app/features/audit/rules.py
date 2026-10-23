@@ -1,3 +1,5 @@
+"""Aplica regras determinísticas às compras e produz rascunhos de achados."""
+
 import hashlib
 import json
 import uuid
@@ -65,6 +67,8 @@ def evaluate(
     config: dict[str, Any],
     column_mappings: dict[uuid.UUID, dict[str, str]] | None = None,
 ) -> tuple[list[FindingDraft], str | None]:
+    """Aplica regras determinísticas às compras e devolve achados e limites da análise."""
+
     findings: list[FindingDraft] = []
     purchases = sorted(purchases, key=lambda item: (item.purchase_date, item.id))
     duplicates: dict[tuple[Any, ...], Purchase] = {}

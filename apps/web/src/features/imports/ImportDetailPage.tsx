@@ -1,3 +1,4 @@
+// Exibe a prévia, associa as colunas e confirma o processamento do arquivo.
 import { useState } from "react";
 import { useOutletContext, useParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";

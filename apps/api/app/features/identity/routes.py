@@ -1,3 +1,5 @@
+"""Gerencia contas, sessões, organizações, membros e convites confirmados."""
+
 import base64
 import binascii
 import json
@@ -494,6 +496,7 @@ def create_invitation(
     )) or 0
     if daily_org >= 20 or daily_email >= 3:
         raise ApiError(429, "invite_rate_limit", "Limite de convites atingido")
+    # O banco guarda somente o hash; o token em claro segue apenas no e-mail.
     token = secrets.token_urlsafe(32)
     invite = OrganizationInvite(
         organization_id=organization_id, email=email, role=data.role,
