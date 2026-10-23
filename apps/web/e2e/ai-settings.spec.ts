@@ -14,12 +14,12 @@ test("proprietário salva instruções da IA na empresa", async ({ page }) => {
   await page.getByRole("button", { name: "Criar organização" }).click();
 
   await page.getByRole("link", { name: "Configurações" }).click();
-  await page.getByRole("tab", { name: "IA" }).click();
+  await page.getByRole("tab", { name: "IA", exact: true }).click();
   const instructions = page.getByLabel("Instruções da empresa para a IA");
   await instructions.fill("Explique o resultado em até três frases.");
   await page.getByRole("button", { name: "Salvar política do copiloto" }).click();
   await expect(page.getByText("Configurações da IA salvas.", { exact: false })).toBeVisible();
   await page.reload();
-  await page.getByRole("tab", { name: "IA" }).click();
+  await page.getByRole("tab", { name: "IA", exact: true }).click();
   await expect(instructions).toHaveValue("Explique o resultado em até três frases.");
 });
