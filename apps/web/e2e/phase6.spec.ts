@@ -9,6 +9,7 @@ test("cadastro até resolução de um caso", async ({ page }) => {
   const unique = Date.now().toString(36);
   await page.goto("/");
   await page.getByRole("button", { name: "Criar conta" }).click();
+  await page.getByLabel("Seu nome").fill("Usuário E2E");
   await page.getByLabel("E-mail").fill(`e2e-${unique}@example.com`);
   await page.getByLabel("Senha").fill("senha-de-teste-12345");
   await page
@@ -181,6 +182,14 @@ test("cadastro até resolução de um caso", async ({ page }) => {
       path: join(process.env.PROCESSMIND_SCREENSHOT_DIR, "case-resolved.png"),
     });
   }
+  await page.getByRole("link", { name: "Ver achado" }).click();
+  await page.getByRole("tab", { name: "Justificativas e comentários" }).click();
+  await expect(page.getByText("Compra verificada e tratada pelo responsável.")).toBeVisible();
+  await expect(page.getByText("Conferência iniciada pelo E2E.")).toBeVisible();
+  await expect(page.getByText("Usuário E2E").last()).toBeVisible();
+  await page.reload();
+  await page.getByRole("tab", { name: "Justificativas e comentários" }).click();
+  await expect(page.getByText("Conferência iniciada pelo E2E.")).toBeVisible();
   await page.getByRole("link", { name: "Casos", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Casos" })).toBeVisible();
   await assertAccessible(page);

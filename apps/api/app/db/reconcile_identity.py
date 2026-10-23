@@ -27,7 +27,8 @@ BUSINESS_TENANT_TABLES = (
     "suppliers",
 )
 IDENTITY_TENANT_TABLES = frozenset({
-    "audit_events", "organization_config_commands", "organization_memberships"
+    "audit_events", "organization_config_commands", "organization_invites",
+    "organization_memberships",
 })
 
 

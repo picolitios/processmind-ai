@@ -29,6 +29,12 @@ class Settings(BaseSettings):
     rabbitmq_password: str = "guest"
     business_auth_mode: str = "database"
     identity_internal_url: str = "http://127.0.0.1:8001"
+    smtp_host: str = ""
+    smtp_port: int = Field(default=1025, ge=1, le=65535)
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_from: str = "convites@processmind.local"
+    smtp_mode: str = "plain"
 
     @model_validator(mode="after")
     def validate_production(self) -> "Settings":
@@ -48,6 +54,12 @@ class Settings(BaseSettings):
             raise ValueError("BUSINESS_AUTH_MODE must be database or identity")
         if self.business_auth_mode == "identity" and self.audit_config_mode != "owned":
             raise ValueError("AUDIT_CONFIG_MODE must be owned for identity authorization")
+        if self.smtp_mode not in {"plain", "starttls", "ssl"}:
+            raise ValueError("SMTP_MODE must be plain, starttls or ssl")
+        if self.smtp_host and self.smtp_mode == "plain" and self.smtp_host not in {
+            "mailpit", "127.0.0.1", "localhost"
+        }:
+            raise ValueError("Plain SMTP is permitted only for the local mail catcher")
         if self.app_env != "local" and (
             self.auth_hash_key == "local-only-replace-before-production"
             or len(self.auth_hash_key) < 32

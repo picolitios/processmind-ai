@@ -83,16 +83,33 @@ services:
       AUDIT_CONFIG_MODE: ${AUDIT_CONFIG_MODE:-owned}
       AUDIT_CONFIG_WRITE_MODE: ${AUDIT_CONFIG_WRITE_MODE:-coordinated}
       AUDIT_INTERNAL_URL: http://api:8000
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_MODE: ${SMTP_MODE:-plain}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-convites@processmind.local}
     ports:
       - "127.0.0.1:8001:8000"
     depends_on:
       db:
         condition: service_healthy
+      mailpit:
+        condition: service_started
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health/ready', timeout=3).close()"]
       interval: 10s
       timeout: 5s
       retries: 5
+  mailpit:
+    image: axllent/mailpit:v1.31.5
+    restart: unless-stopped
+    environment:
+      MP_DATABASE: /data/mailpit.db
+    ports:
+      - "127.0.0.1:8025:8025"
+    volumes:
+      - mailpit_data:/data
   identity-config-reconciler:
     build: ./apps/api
     command: ["python", "-m", "app.features.identity.config_sync"]
@@ -216,3 +233,4 @@ volumes:
   postgres_data:
   upload_data:
   rabbitmq_data:
+  mailpit_data:

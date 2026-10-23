@@ -98,6 +98,12 @@ O nginx resolve novamente o endereço da API após a recriação do contêiner.
 
 O nginx envia `/api/v1/auth/*` e as rotas de organização, configurações e membros para o processo de identidade. Importações, auditorias, achados, IA, casos e indicadores continuam na API de negócios. Ambos usam o mesmo PostgreSQL com schemas e papéis separados; a [spec do corte](../specs/architecture/identity-schema-credential-boundary-v1.md) registra o alcance e o rollback.
 
+### Convites e nomes da equipe
+
+Depois de atualizar o código, execute `docker compose run --rm db-admin alembic upgrade head` e `docker compose run --rm db-admin python -m app.db.provision_roles` antes de reiniciar identidade/API/web. O Compose local inicia Mailpit; abra `http://127.0.0.1:8025` para ver os convites sintéticos, ou `http://127.0.0.1:8026` na demo isolada. A mensagem fica apenas no computador e não chega à caixa real do destinatário. O destinatário abre o link, entra ou se cadastra com o mesmo e-mail e confirma o convite. Contas anteriores podem registrar o nome na aba **Equipe**.
+
+Para enviar mensagens reais, configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_MODE=starttls` ou `ssl`, `SMTP_USERNAME`, `SMTP_PASSWORD` e `SMTP_FROM` no ambiente privado da identidade. Não publique o Mailpit pelo proxy externo nem versione os segredos. Sem SMTP funcional a API retorna erro e não ativa o membro.
+
 Para desfazer o corte, pare todos os serviços Python, use a credencial administrativa de `db-admin` e execute `docker compose run --rm --no-deps db-admin alembic downgrade 6fd3a81b29c4`. A migração devolve as tabelas a `public` sem apagar linhas. Antes de iniciar uma imagem antiga, restaure suas variáveis de modo e credencial administrativa e cumpra os gates de cópias legadas acima. Os papéis globais permanecem no cluster porque outro banco pode usá-los, mas perdem acesso aos schemas deste banco.
 
 Auditorias novas usam a outbox e RabbitMQ em Compose. `http://localhost:15672` mostra o broker local. A API persiste o pedido mesmo quando o broker estiver indisponível; o publicador retoma a entrega quando a conexão voltar. `worker` executa importações; `model-worker` executa explicações e copiloto, inclusive a limpeza de chats temporários. Ambos usam a mesma tabela de jobs e banco de negócios. Antes de ativar o modo `broker` em uma instalação antiga, conclua as auditorias ainda enfileiradas em modo `database` (veja `docs/architecture/migration-plan.md`).

@@ -10,6 +10,7 @@ const nav = [
   ["audits", "Auditorias", "◎"],
   ["findings", "Alertas", "◇"],
   ["cases", "Casos", "▣"],
+  ["team", "Equipe", "♙"],
   ["agent", "Agente da empresa", "✦"],
   ["settings", "Configurações", "⚙"],
 ];
@@ -106,7 +107,7 @@ export function Shell() {
             {session?.user.email.slice(0, 1).toUpperCase()}
           </span>
           <span className="user-info">
-            <strong>{session?.user.email}</strong>
+            <strong>{session?.user.display_name || session?.user.email}</strong>
             <small>{roleLabel(role)}</small>
           </span>
           <button
@@ -158,8 +159,8 @@ export function roleLabel(role?: Role) {
     {
       owner: "Proprietário",
       admin: "Administrador",
-      analyst: "Analista",
-      viewer: "Visualizador",
+      analyst: "Líder",
+      viewer: "Funcionário",
     } as Record<Role, string>
   )[role || "viewer"];
 }

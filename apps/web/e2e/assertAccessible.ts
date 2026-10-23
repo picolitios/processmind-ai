@@ -7,7 +7,7 @@ export async function assertAccessible(page: Page) {
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
     .analyze()
   const issues = results.violations.flatMap(violation =>
-    violation.nodes.map(node => `${violation.id}: ${node.target.join(', ')}`),
+    violation.nodes.map(node => `${violation.id}: ${node.target.join(', ')} ${node.failureSummary || ''}`),
   )
   expect(issues).toEqual([])
 }

@@ -11,14 +11,23 @@ export function FindingsPage() {
   const [severity, setSeverity] = useState("");
   const [review, setReview] = useState("");
   const [cursor, setCursor] = useState("");
+  const [activeItem, setActiveItem] = useState("");
   const findings = useResource<Page<Finding>>(
     ["findings", organizationId, severity, review, cursor],
     orgPath(
       organizationId,
-      `/findings${query({ severity, review_state: review, cursor })}`,
+      `/findings${query({ severity, review_state: review, cursor, limit: "100" })}`,
     ),
     Boolean(organizationId),
   );
+  const items = findings.data?.items || [];
+  const groups = Array.from(
+    new Map(items.map((item) => [item.subject_key, item.subject_label])).entries(),
+  );
+  const selectedItem = groups.some(([key]) => key === activeItem) ? activeItem : "";
+  const visibleItems = selectedItem
+    ? items.filter((item) => item.subject_key === selectedItem)
+    : items;
   return (
     <>
       <div className="page-heading">
@@ -65,11 +74,36 @@ export function FindingsPage() {
           </select>
         </label>
       </div>
+      {groups.length > 0 && (
+        <div className="item-tabs" role="tablist" aria-label="Alertas por item analisado">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={!selectedItem}
+            className={!selectedItem ? "active" : ""}
+            onClick={() => setActiveItem("")}
+          >
+            Todos ({items.length})
+          </button>
+          {groups.map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={selectedItem === key}
+              className={selectedItem === key ? "active" : ""}
+              onClick={() => setActiveItem(key)}
+            >
+              {label} ({items.filter((item) => item.subject_key === key).length})
+            </button>
+          ))}
+        </div>
+      )}
       <section className="card">
         <QueryState loading={findings.isLoading} error={findings.error} />
-        {findings.data?.items.length ? (
+        {visibleItems.length ? (
           <div className="list">
-            {findings.data.items.map((item) => (
+            {visibleItems.map((item) => (
               <Link
                 className="list-row"
                 key={item.id}
@@ -80,6 +114,7 @@ export function FindingsPage() {
                     {item.severity}
                   </span>
                   <strong>{item.rule_code}</strong>
+                  <small>{item.subject_label}</small>
                   <small>{item.explanation}</small>
                 </span>
                 <span>

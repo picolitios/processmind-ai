@@ -98,25 +98,32 @@ def resolve_member_references(
     organization_id: uuid.UUID,
     membership_ids: list[uuid.UUID] | None = None,
     user_id: uuid.UUID | None = None,
+    user_ids: list[uuid.UUID] | None = None,
 ) -> list[MemberReference]:
     ids = membership_ids or []
-    if len(ids) > 100:
+    requested_users = user_ids or []
+    if len(ids) > 100 or len(requested_users) > 100:
         raise ValueError("member_reference_limit")
-    if not ids and user_id is None:
+    if not ids and user_id is None and not requested_users:
         return []
     if settings.business_auth_mode == "database":
         # Local mode is retained for rollback while case FKs still target the shared schema.
         conditions: list[ColumnElement[bool]] = [Membership.id.in_(ids)] if ids else []
         if user_id is not None:
             conditions.append(Membership.user_id == user_id)
-        members = db.scalars(
-            select(Membership).where(
+        if requested_users:
+            conditions.append(Membership.user_id.in_(requested_users))
+        members = db.execute(
+            select(Membership, User).join(User, User.id == Membership.user_id).where(
                 Membership.organization_id == organization_id, or_(*conditions)
             )
         ).all()
         return [
-            MemberReference(membership_id=member.id, user_id=member.user_id, status=member.status)
-            for member in members
+            MemberReference(
+                membership_id=member.id, user_id=member.user_id, status=member.status,
+                display_name=user.display_name, email=user.email,
+            )
+            for member, user in members
         ]
     timestamp = str(int(time.time()))
     try:
@@ -128,10 +135,11 @@ def resolve_member_references(
                     "organization_id": str(organization_id),
                     "membership_ids": [str(member_id) for member_id in ids],
                     "user_id": str(user_id) if user_id else None,
+                    "user_ids": [str(item) for item in requested_users],
                 },
                 headers=private_headers(
                     timestamp, auth.token,
-                    member_references_subject(organization_id, ids, user_id),
+                    member_references_subject(organization_id, ids, user_id, requested_users),
                 ),
             )
     except httpx.RequestError as exc:
@@ -150,7 +158,9 @@ def resolve_member_references(
         raise ApiError(503, "identity_unavailable", "Identidade indisponível")
     requested_ids = set(ids)
     if any(
-        member.membership_id not in requested_ids and member.user_id != user_id
+        member.membership_id not in requested_ids
+        and member.user_id != user_id
+        and member.user_id not in requested_users
         for member in result.members
     ):
         raise ApiError(503, "identity_unavailable", "Identidade indisponível")

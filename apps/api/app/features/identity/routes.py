@@ -1,8 +1,9 @@
 import base64
 import binascii
 import json
+import secrets
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import cast
 
 from fastapi import APIRouter, Query, Request, Response
@@ -13,14 +14,20 @@ from app.core.config import settings
 from app.core.errors import ApiError
 from app.features.audit.models import AuditConfiguration
 from app.features.identity.config_sync import complete_pending, pending_for_organizations
+from app.features.identity.mail import send_invitation
 from app.features.identity.models import (
     AuditEvent,
     Membership,
     Organization,
     OrganizationConfigCommand,
+    OrganizationInvite,
     User,
 )
 from app.features.identity.schemas import (
+    AcceptInviteInput,
+    InviteInput,
+    InviteRole,
+    InviteView,
     LoginInput,
     MemberInput,
     MemberPage,
@@ -30,6 +37,7 @@ from app.features.identity.schemas import (
     OrganizationInput,
     OrganizationSettingsInput,
     OrganizationView,
+    ProfileInput,
     RegisterInput,
     Role,
     SessionView,
@@ -43,6 +51,7 @@ from app.features.identity.security import (
     check_login_limit,
     clear_login_failures,
     csrf_for_token,
+    digest,
     dummy_password_hash,
     issue_session,
     password_hasher,
@@ -58,16 +67,31 @@ organizations_router = APIRouter(prefix="/api/v1/organizations", tags=["organiza
 
 
 def user_view(user: User) -> UserView:
-    return UserView(id=user.id, email=user.email)
+    return UserView(
+        id=user.id, email=user.email, display_name=user.display_name,
+        email_verified=user.email_verified_at is not None,
+    )
 
 
-def member_view(member: Membership) -> MemberView:
+def member_view(member: Membership, user: User | None = None) -> MemberView:
     return MemberView(
         organization_id=member.organization_id,
         user_id=member.user_id,
         role=cast(Role, member.role),
         status=cast(MemberStatus, member.status),
         created_at=member.created_at,
+        display_name=user.display_name if user else None,
+        email=user.email if user else None,
+    )
+
+
+def invite_view(invite: OrganizationInvite) -> InviteView:
+    """Expose invitation state without the confirmation secret or its hash."""
+    return InviteView(
+        id=invite.id, organization_id=invite.organization_id, email=invite.email,
+        role=cast(InviteRole, invite.role), created_at=invite.created_at,
+        expires_at=invite.expires_at, sent_at=invite.sent_at,
+        accepted_at=invite.accepted_at, cancelled_at=invite.cancelled_at,
     )
 
 
@@ -156,7 +180,10 @@ def require_membership(
 @auth_router.post("/register", response_model=UserView, status_code=201)
 def register(data: RegisterInput, request: Request, db: DB) -> UserView:
     validate_origin(request)
-    user = User(email=str(data.email).casefold(), password_hash=password_hasher.hash(data.password))
+    user = User(
+        email=str(data.email).casefold(), display_name=data.display_name,
+        password_hash=password_hasher.hash(data.password),
+    )
     db.add(user)
     try:
         db.flush()
@@ -200,6 +227,15 @@ def login(data: LoginInput, request: Request, response: Response, db: DB) -> Ses
 @auth_router.get("/session", response_model=SessionView)
 def get_session(db: DB, auth: Auth) -> SessionView:
     return session_view(db, auth)
+
+
+@auth_router.patch("/profile", response_model=UserView)
+def update_profile(data: ProfileInput, request: Request, db: DB, auth: CsrfAuth) -> UserView:
+    """Let a user correct their own display name without changing historical actor IDs."""
+    auth.user.display_name = data.display_name
+    log_event(db, request, "user.profile_updated", auth.user.id, "user", auth.user.id)
+    db.commit()
+    return user_view(auth.user)
 
 
 @auth_router.post("/logout", status_code=204)
@@ -391,10 +427,152 @@ def list_members(
         statement.order_by(Membership.created_at, Membership.id).limit(limit + 1)
     ).all()
     page = members[:limit]
+    users = (
+        {
+            user.id: user
+            for user in db.scalars(
+                select(User).where(User.id.in_([item.user_id for item in page]))
+            )
+        }
+        if page else {}
+    )
     return MemberPage(
-        items=[member_view(member) for member in page],
+        items=[member_view(member, users.get(member.user_id)) for member in page],
         next_cursor=make_cursor(page[-1]) if len(members) > limit else None,
     )
+
+
+@organizations_router.get("/{organization_id}/invitations", response_model=list[InviteView])
+def list_invitations(organization_id: uuid.UUID, db: DB, auth: Auth) -> list[InviteView]:
+    """Show recent invite states to managers without exposing confirmation tokens."""
+    require_membership(db, auth, organization_id, {"owner", "admin"})
+    invites = db.scalars(
+        select(OrganizationInvite)
+        .where(OrganizationInvite.organization_id == organization_id)
+        .order_by(OrganizationInvite.created_at.desc(), OrganizationInvite.id.desc())
+        .limit(200)
+    ).all()
+    return [invite_view(item) for item in invites]
+
+
+@organizations_router.post(
+    "/{organization_id}/invitations", response_model=InviteView, status_code=201
+)
+def create_invitation(
+    organization_id: uuid.UUID, data: InviteInput, request: Request, db: DB, auth: CsrfAuth
+) -> InviteView:
+    """Send a single-use invite; pending records never authorize business access."""
+    org, _ = require_membership(db, auth, organization_id, {"owner"}, for_update=True)
+    now = datetime.now(UTC)
+    email = str(data.email).casefold()
+    existing = db.scalar(
+        select(Membership.id)
+        .join(User, User.id == Membership.user_id)
+        .where(Membership.organization_id == organization_id, User.email == email)
+    )
+    if existing is not None:
+        raise ApiError(409, "membership_conflict", "Pessoa já pertence à organização")
+    pending = db.scalar(
+        select(OrganizationInvite.id).where(
+            OrganizationInvite.organization_id == organization_id,
+            OrganizationInvite.email == email,
+            OrganizationInvite.accepted_at.is_(None),
+            OrganizationInvite.cancelled_at.is_(None),
+            OrganizationInvite.expires_at > now,
+        )
+    )
+    if pending is not None:
+        raise ApiError(409, "invite_pending", "Já existe convite pendente para este e-mail")
+    daily_org = db.scalar(select(func.count()).select_from(OrganizationInvite).where(
+        OrganizationInvite.organization_id == organization_id,
+        OrganizationInvite.created_at >= now - timedelta(days=1),
+    )) or 0
+    daily_email = db.scalar(select(func.count()).select_from(OrganizationInvite).where(
+        OrganizationInvite.organization_id == organization_id,
+        OrganizationInvite.email == email,
+        OrganizationInvite.created_at >= now - timedelta(days=1),
+    )) or 0
+    if daily_org >= 20 or daily_email >= 3:
+        raise ApiError(429, "invite_rate_limit", "Limite de convites atingido")
+    token = secrets.token_urlsafe(32)
+    invite = OrganizationInvite(
+        organization_id=organization_id, email=email, role=data.role,
+        token_hash=digest(token), created_by_user_id=auth.user.id,
+        expires_at=now + timedelta(days=7),
+    )
+    db.add(invite)
+    db.flush()
+    assert org is not None
+    send_invitation(email, org.name, token)
+    invite.sent_at = datetime.now(UTC)
+    log_event(
+        db, request, "invitation.sent", auth.user.id, "invitation", invite.id,
+        organization_id,
+    )
+    db.commit()
+    return invite_view(invite)
+
+
+@organizations_router.post(
+    "/{organization_id}/invitations/{invite_id}/cancel", response_model=InviteView
+)
+def cancel_invitation(
+    organization_id: uuid.UUID, invite_id: uuid.UUID, request: Request, db: DB, auth: CsrfAuth
+) -> InviteView:
+    require_membership(db, auth, organization_id, {"owner"})
+    invite = db.scalar(select(OrganizationInvite).where(
+        OrganizationInvite.organization_id == organization_id,
+        OrganizationInvite.id == invite_id,
+    ).with_for_update())
+    if invite is None:
+        raise ApiError(404, "not_found", "Convite não encontrado")
+    if invite.accepted_at is not None:
+        raise ApiError(409, "invite_accepted", "Convite já aceito")
+    if invite.cancelled_at is None:
+        invite.cancelled_at = datetime.now(UTC)
+        log_event(db, request, "invitation.cancelled", auth.user.id, "invitation", invite.id,
+                  organization_id)
+        db.commit()
+    return invite_view(invite)
+
+
+@auth_router.post("/invitations/accept", response_model=MemberView)
+def accept_invitation(
+    data: AcceptInviteInput, request: Request, db: DB, auth: CsrfAuth
+) -> MemberView:
+    """Bind possession of the emailed token to the same authenticated email."""
+    now = datetime.now(UTC)
+    invite = db.scalar(select(OrganizationInvite).where(
+        OrganizationInvite.token_hash == digest(data.token),
+    ).with_for_update())
+    if invite is None or invite.cancelled_at is not None or invite.expires_at <= now:
+        raise ApiError(422, "invalid_invite", "Convite inválido ou expirado")
+    if invite.email != auth.user.email:
+        raise ApiError(403, "invite_email_mismatch", "Entre com o e-mail convidado")
+    membership = db.scalar(select(Membership).where(
+        Membership.organization_id == invite.organization_id,
+        Membership.user_id == auth.user.id,
+    ))
+    if invite.accepted_at is not None:
+        if membership is None:
+            raise ApiError(409, "invite_conflict", "Convite já utilizado")
+        return member_view(membership, auth.user)
+    if membership is not None:
+        raise ApiError(409, "membership_conflict", "Pessoa já pertence à organização")
+    membership = Membership(
+        organization_id=invite.organization_id, user_id=auth.user.id,
+        role=invite.role, status="active",
+    )
+    db.add(membership)
+    invite.accepted_at = now
+    auth.user.email_verified_at = now
+    db.flush()
+    log_event(
+        db, request, "invitation.accepted", auth.user.id,
+        "membership", membership.id, invite.organization_id,
+    )
+    db.commit()
+    return member_view(membership, auth.user)
 
 
 @organizations_router.post("/{organization_id}/users", response_model=MemberView, status_code=201)
@@ -424,7 +602,7 @@ def add_member(
     except IntegrityError as exc:
         db.rollback()
         raise ApiError(409, "membership_conflict", "Usuário já associado") from exc
-    return member_view(membership)
+    return member_view(membership, user)
 
 
 @organizations_router.patch("/{organization_id}/users/{user_id}", response_model=MemberView)

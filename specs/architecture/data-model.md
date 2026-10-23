@@ -2,15 +2,16 @@
 
 Todas as PKs são UUID, timestamps são `timestamptz` UTC, quantidades e dinheiro são `numeric` (sem float). Campos `created_at` e `updated_at` existem nas entidades mutáveis; eventos e evidências são append-only. `organization_id` é obrigatório em toda entidade de negócio, inclusive jobs e análises. UUIDs não substituem autorização.
 
-As tabelas `User`, `Organization`, `OrganizationConfigCommand`, `OrganizationMembership`, `Session`, `LoginFailure` e `AuditEvent` pertencem ao schema `identity`. As demais entidades pertencem a `business`. A tabela técnica `alembic_version` permanece em `public`; apenas a credencial administrativa executa DDL e reconciliação entre schemas. Os papéis de runtime não têm privilégios no schema do outro domínio.
+As tabelas `User`, `Organization`, `OrganizationConfigCommand`, `OrganizationMembership`, `OrganizationInvite`, `Session`, `LoginFailure` e `AuditEvent` pertencem ao schema `identity`. As demais entidades pertencem a `business`. A tabela técnica `alembic_version` permanece em `public`; apenas a credencial administrativa executa DDL e reconciliação entre schemas. Os papéis de runtime não têm privilégios no schema do outro domínio.
 
 | Entidade | Campos principais e relacionamentos | Constraints e índices essenciais |
 | --- | --- | --- |
-| User | email normalizado, password_hash, status | email único global; índice por status |
+| User | email normalizado, display_name opcional, email_verified_at opcional, password_hash, status | email único global; índice por status; ID de ator preservado ao alterar nome |
 | Organization | name, slug, status, settings_version | slug único; configurações versionadas |
 | AuditConfiguration | organization_id, settings_version, last_command_id, amount_limits, delay_window_days | Uma linha por organização; apenas a auditoria aplica versões no modo coordenado; comando repetido é verificado por ID e conteúdo |
 | OrganizationConfigCommand | id, organization_id, settings_version, kind, amount_limits, delay_window_days, status, created/updated/applied_at | Comando durável da identidade; único `(organization_id,settings_version)`; índice status/data; pendência recuperável e conflito explícito |
 | OrganizationMembership | organization_id, user_id, role, status | FK para ambos; único `(organization_id,user_id)`; role enum |
+| OrganizationInvite | organization_id, email, role, token_hash, created_by_user_id, created/expires/sent/accepted/cancelled_at | FKs para organização e autor; token_hash único; índices organização/data e e-mail/expiração; convite pendente não concede associação |
 | Session | user_id, token_hash, csrf_hash, expires_at, revoked_at | token_hash único; índice `(user_id,expires_at)`; retenção limitada |
 | LoginFailure | HMAC do email, HMAC do IP, occurred_at | índices por email/data, IP/data e data para expurgo; sem credenciais em claro |
 | ImportBatch | organization_id, uploader_id, sha256, original_name, private_storage_key, mapping, status, counts, idempotency_key, reimport_reason | conflito por hash é serializado por organização na API; reimportação exige motivo; único `(organization_id,idempotency_key)` quando informado; índice `(organization_id,created_at,id)` |

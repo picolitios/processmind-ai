@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.errors import ApiError
-from app.features.audit.evidence import duplicate_purchase_facts, evidence_data
+from app.features.audit.evidence import evidence_data, purchase_facts_for_evidence
 from app.features.audit.models import AuditFinding, AuditRun, FindingEvidence
 
 
@@ -59,7 +59,7 @@ def build_ai_context(
     evidence = evidence[:50]
     allowed = {item.id for item in evidence}
     findings_by_id = {item.id: item for item in selected}
-    purchase_facts = duplicate_purchase_facts(db, organization_id, selected, evidence)
+    purchase_facts = purchase_facts_for_evidence(db, organization_id, selected, evidence)
     grouped: dict[uuid.UUID, list[dict[str, Any]]] = {item.id: [] for item in selected}
     for item in evidence:
         selected_data = evidence_data(findings_by_id[item.finding_id], item, purchase_facts)

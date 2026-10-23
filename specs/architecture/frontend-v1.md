@@ -10,6 +10,8 @@
 ## Permissões e decisões
 
 - Viewer consulta. Owner/Admin/Analyst podem importar, auditar, revisar, abrir e modificar casos e solicitar IA; Owner/Admin editam parâmetros, e apenas Owner gerencia membros. O backend permanece a autoridade final de autorização.
+- A tela **Equipe** mostra `analyst` como Líder e `viewer` como Funcionário, sem alterar privilégios. O proprietário envia convites por e-mail; a associação nasce somente após aceite autenticado pelo mesmo endereço. O nome cadastrado aparece na atividade dos alertas, comentários e decisões de caso.
+- Alertas mostram abas por produto/fornecedor/linha na página atual. O detalhe possui aba de justificativas e comentários, com autor e data, preservando acesso após revisão ou descarte.
 - A importação exige prévia e mapeamento dos campos obrigatórios. Só importações concluídas entram em auditorias. O achado mostra justificativa e evidências antes das ações de revisão ou abertura de caso.
 - O detalhe de `DUPLICATE` compara lado a lado as duas compras, identifica os campos iguais, informa se vieram da mesma importação e deixa explícito que a duplicidade real depende de conferência humana. A comparação determinística permanece disponível sem IA.
 - IA é opcional e apresentada como apoio. O painel mostra a limitação devolvida pelo backend em falhas e não altera estado de auditoria ou caso. O dashboard usa apenas indicadores persistidos; rankings são de compras auditadas e a ausência de categoria é declarada.

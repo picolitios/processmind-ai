@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from "react-router";
 import { AuthProvider, useAuth } from "./features/auth/AuthProvider";
 import { AuthPage } from "./features/auth/AuthPage";
 import { Shell } from "./features/shell/Shell";
+import { InviteAcceptPage } from "./features/team/InviteAcceptPage";
 
 const OrganizationsPage = lazy(() =>
   import("./features/organizations/OrganizationsPage").then(
@@ -59,6 +60,9 @@ const SettingsPage = lazy(() =>
     default: SettingsPage,
   })),
 );
+const TeamPage = lazy(() =>
+  import("./features/team/TeamPage").then(({ TeamPage }) => ({ default: TeamPage })),
+);
 const OrganizationAgentPage = lazy(() =>
   import("./features/copilot/OrganizationAgentPage").then(({ OrganizationAgentPage }) => ({
     default: OrganizationAgentPage,
@@ -77,6 +81,7 @@ function Router() {
     return (
       <Routes>
         <Route path="/login" element={<AuthPage />} />
+        <Route path="/invite" element={<InviteAcceptPage />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     );
@@ -89,6 +94,8 @@ function Router() {
       }
     >
       <Routes>
+        <Route path="/invite" element={<InviteAcceptPage />} />
+        <Route path="/login" element={<Navigate to={sessionStorage.getItem("processmind-pending-invite") ? "/invite" : "/"} replace />} />
         <Route element={<Shell />}>
           <Route path="/" element={<OrganizationsPage />} />
           <Route
@@ -131,6 +138,7 @@ function Router() {
             path="/organizations/:organizationId/settings"
             element={<SettingsPage />}
           />
+          <Route path="/organizations/:organizationId/team" element={<TeamPage />} />
           <Route
             path="/organizations/:organizationId/agent"
             element={<OrganizationAgentPage />}

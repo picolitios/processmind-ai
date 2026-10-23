@@ -350,6 +350,7 @@ form > .button {
 .user-info {
   min-width: 0;
   flex: 1;
+  background: #112e2b;
 }
 .user-info strong,
 .user-info small {
@@ -360,10 +361,11 @@ form > .button {
 }
 .user-info strong {
   font-size: 0.72rem;
+  color: #f3fbf8;
 }
 .user-info small {
   font-size: 0.7rem;
-  color: #8db3a9;
+  color: #c4ddd5;
 }
 .content {
   min-width: 0;
@@ -557,6 +559,26 @@ form > .button {
 .table-wrap {
   overflow-x: auto;
 }
+.item-tabs {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding: 0.35rem 0 1rem;
+}
+.item-tabs button {
+  flex: 0 0 auto;
+  border: 1px solid #cbded7;
+  border-radius: 999px;
+  background: #fff;
+  color: #234e46;
+  padding: 0.65rem 0.9rem;
+  cursor: pointer;
+}
+.item-tabs button.active {
+  background: #0a766a;
+  color: #fff;
+  border-color: #0a766a;
+}
 table {
   border-collapse: collapse;
   width: 100%;
@@ -694,6 +716,19 @@ tr:last-child td {
 .history-event {
   display: flex;
   justify-content: space-between;
+}
+.activity-entry {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+}
+.activity-entry p {
+  margin: 0;
+}
+.invite-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
 }
 .copilot-create,
 .copilot-conversation-heading,

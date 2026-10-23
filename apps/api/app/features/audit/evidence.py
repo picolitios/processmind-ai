@@ -1,4 +1,4 @@
-"""Resolve selected purchase facts for duplicate findings without changing stored evidence."""
+"""Resolve purchase facts for finding labels and duplicate comparisons."""
 
 import uuid
 from collections.abc import Sequence
@@ -11,23 +11,23 @@ from app.features.audit.models import AuditFinding, FindingEvidence
 from app.features.ingestion.models import Purchase, Supplier
 
 
-def duplicate_purchase_facts(
+def purchase_facts_for_evidence(
     db: Session,
     organization_id: uuid.UUID,
     findings: Sequence[AuditFinding],
     evidence: Sequence[FindingEvidence],
 ) -> dict[uuid.UUID, dict[str, Any]]:
-    """Fetch the compared purchases in one tenant-scoped query, including older findings."""
-    duplicate_ids = {finding.id for finding in findings if finding.rule_code == "DUPLICATE"}
+    """Fetch linked purchases in one tenant-scoped query, including older findings."""
+    finding_ids = {finding.id for finding in findings}
     purchase_ids = {
         item.purchase_id
         for item in evidence
-        if item.finding_id in duplicate_ids and item.purchase_id is not None
+        if item.finding_id in finding_ids and item.purchase_id is not None
     }
     if not purchase_ids:
         return {}
     rows = db.execute(
-        select(Purchase, Supplier.external_id)
+        select(Purchase, Supplier.external_id, Supplier.name)
         .join(
             Supplier,
             and_(
@@ -41,6 +41,7 @@ def duplicate_purchase_facts(
         purchase.id: {
             "purchase_id": purchase.external_purchase_id,
             "supplier_id": supplier_id,
+            "supplier_name": supplier_name,
             "product_id": purchase.product_id,
             "product_name": purchase.product_name,
             "purchase_date": purchase.purchase_date.isoformat(),
@@ -51,8 +52,36 @@ def duplicate_purchase_facts(
             "currency": purchase.currency,
             "import_id": str(purchase.batch_id),
         }
-        for purchase, supplier_id in rows
+        for purchase, supplier_id, supplier_name in rows
     }
+
+
+def finding_subject(
+    finding: AuditFinding,
+    evidence: Sequence[FindingEvidence],
+    purchase_facts: dict[uuid.UUID, dict[str, Any]],
+) -> tuple[str, str]:
+    """Label the analyzed product, supplier, or invalid source row for grouping."""
+    facts = [
+        purchase_facts[item.purchase_id]
+        for item in evidence
+        if item.purchase_id in purchase_facts
+    ]
+    if facts:
+        first = facts[0]
+        if finding.rule_code == "RECURRING_DELAY":
+            supplier_id = first["supplier_id"]
+            supplier_name = first["supplier_name"] or supplier_id
+            return f"supplier:{supplier_id}", f"Fornecedor {supplier_name}"
+        product_id = first["product_id"]
+        product_name = first["product_name"] or product_id
+        return f"product:{product_id}", f"{product_name} ({product_id})"
+    if evidence:
+        first_row = evidence[0]
+        row_number = first_row.evidence_json.get("row_number")
+        label = f"Linha {row_number} da importação" if row_number else "Linha da importação"
+        return f"row:{first_row.import_row_id}", label
+    return f"finding:{finding.id}", "Item não identificado"
 
 
 def evidence_data(
