@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from "./features/auth/AuthProvider";
 import { AuthPage } from "./features/auth/AuthPage";
 import { Shell } from "./features/shell/Shell";
 import { InviteAcceptPage } from "./features/team/InviteAcceptPage";
+import { ThemeProvider } from "./features/theme/ThemeProvider";
 
 const OrganizationsPage = lazy(() =>
   import("./features/organizations/OrganizationsPage").then(
@@ -152,8 +153,10 @@ function Router() {
 }
 export default function App() {
   return (
-    <AuthProvider>
-      <Router />
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <Router />
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
