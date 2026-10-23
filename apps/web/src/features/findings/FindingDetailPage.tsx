@@ -11,6 +11,7 @@ import { AnalysisPanel } from "./AnalysisPanel";
 import { DuplicateComparison } from "./DuplicateComparison";
 import { FindingActivity } from "./FindingActivity";
 import { CopilotPanel } from "../copilot/CopilotPanel";
+import { displayEvidence } from "./formatMoney";
 
 // Present the rule's verified delay independently of the optional model answer.
 function LateDeliverySummary({ evidence }: { evidence: Evidence[] }) {
@@ -129,7 +130,7 @@ export function FindingDetailPage() {
                       ? "Compra"
                       : "Linha da importação"}
                   </strong>
-                  <pre>{JSON.stringify(item.data, null, 2)}</pre>
+                  <pre>{displayEvidence(item.data)}</pre>
                 </div>
               ))
             ) : (
