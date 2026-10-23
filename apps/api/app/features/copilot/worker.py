@@ -16,6 +16,7 @@ from app.features.ai.worker import RETRY_MESSAGE, OllamaUnavailable, call_struct
 from app.features.audit.ai_context import build_ai_context
 from app.features.audit.models import AuditFinding, AuditRun, FindingEvidence
 from app.features.audit_trail.events import append_business_event
+from app.features.copilot.instructions import system_message_for_organization
 from app.features.copilot.models import CopilotConversation, CopilotPolicy, CopilotTurn
 from app.features.copilot.organization_context import build_organization_context
 from app.features.copilot.schemas import CopilotResult
@@ -192,6 +193,9 @@ def process_copilot_job(db: Session, job_id: uuid.UUID) -> None:
     turn.status = "running"
     # Histórico e memória são revalidados no tenant; IDs permitidos acompanham o contexto.
     context, allowed, partial = build_copilot_context(db, conversation, turn)
+    system_message = system_message_for_organization(
+        db, conversation.organization_id, SYSTEM_MESSAGE,
+    )
     context["allowed_evidence_ids"] = sorted(str(value) for value in allowed)
     turn.context_hash = hashlib.sha256(_serialized(context)).hexdigest()
     if not allowed:
@@ -204,7 +208,7 @@ def process_copilot_job(db: Session, job_id: uuid.UUID) -> None:
             result, model = call_verified(
                 lambda retry: call_structured(
                     context, settings.ollama_model, CopilotResult,
-                    SYSTEM_MESSAGE + (RETRY_MESSAGE if retry else ""),
+                    system_message + (RETRY_MESSAGE if retry else ""),
                 ),
                 lambda value: value.validate_evidence(allowed),
             )

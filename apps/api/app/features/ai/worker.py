@@ -18,6 +18,7 @@ from app.features.ai.models import AIAnalysis
 from app.features.ai.schemas import AIResult
 from app.features.audit.ai_context import build_ai_context
 from app.features.audit_trail.events import append_business_event
+from app.features.copilot.instructions import system_message_for_organization
 from app.features.ingestion.models import Job
 
 SYSTEM_MESSAGE = (
@@ -95,10 +96,11 @@ def call_structured[ResultModel: BaseModel](
 
 def _call_ollama(
     context: dict[str, Any], model: str, retry: bool = False,
+    system_message: str = SYSTEM_MESSAGE,
 ) -> tuple[AIResult, str]:
     """Preserve the existing explanation contract over the shared transport."""
     return call_structured(
-        context, model, AIResult, SYSTEM_MESSAGE + (RETRY_MESSAGE if retry else ""),
+        context, model, AIResult, system_message + (RETRY_MESSAGE if retry else ""),
     )
 
 
@@ -150,10 +152,13 @@ def process_ai_job(db: Session, job_id: uuid.UUID) -> None:
         context["allowed_evidence_ids"] = sorted(str(value) for value in allowed)
         serialized = json.dumps(context, ensure_ascii=False, sort_keys=True).encode("utf-8")
         analysis.evidence_hash = hashlib.sha256(serialized).hexdigest()
+        system_message = system_message_for_organization(
+            db, analysis.organization_id, SYSTEM_MESSAGE,
+        )
         try:
             # Uma resposta sem citação válida não é publicada como explicação.
             result, model = call_verified(
-                lambda retry: _call_ollama(context, analysis.model, retry),
+                lambda retry: _call_ollama(context, analysis.model, retry, system_message),
                 lambda value: value.validate_evidence(allowed),
             )
             analysis.response_json = result.model_dump(mode="json")

@@ -28,11 +28,15 @@ class CopilotPolicy(Base):
     organization_id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True)
     temporary_default: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     memory_turn_limit: Mapped[int] = mapped_column(Integer, nullable=False, default=10)
+    instructions: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
-    __table_args__ = (CheckConstraint("memory_turn_limit BETWEEN 0 AND 20"),)
+    __table_args__ = (
+        CheckConstraint("memory_turn_limit BETWEEN 0 AND 20"),
+        CheckConstraint("char_length(instructions) <= 2000", name="ck_copilot_instructions_length"),
+    )
 
 
 class CopilotConversation(Base):

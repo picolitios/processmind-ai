@@ -12,6 +12,9 @@ class PolicyInput(BaseModel):
 
     temporary_default: bool
     memory_turn_limit: int = Field(ge=0, le=20)
+    instructions: Annotated[
+        str, StringConstraints(strip_whitespace=True, max_length=2000)
+    ] | None = None
 
 
 class ConversationInput(BaseModel):

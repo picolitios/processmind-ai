@@ -9,6 +9,7 @@ from test_identity import create_org, create_user, csrf_headers, login
 
 from app.db.engine import make_engine
 from app.features.audit.models import AuditFinding, AuditRun, FindingEvidence
+from app.features.copilot.instructions import system_message_for_organization
 from app.features.copilot.models import CopilotConversation, CopilotTurn
 from app.features.copilot.schemas import CopilotResult
 from app.features.copilot.worker import (
@@ -113,6 +114,45 @@ def finish_question(
         job.status = "running"
         db.commit()
         process_copilot_job(db, job.id)
+
+
+def test_company_instructions_reach_copilot_without_replacing_evidence_rules(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.features.copilot import worker
+
+    with TestClient(app) as owner:
+        csrf = login(owner, create_user(owner, "copilot-instructions"))
+        org_id = create_org(owner, csrf, "copilot-instructions")
+        user_id = owner.get("/api/v1/auth/session").json()["user"]["id"]
+        _, findings, evidence = seed_targets(org_id, user_id)
+        base = f"/api/v1/organizations/{org_id}/ai/copilot"
+        saved = owner.put(
+            f"{base}/policy", headers=csrf_headers(csrf),
+            json={"temporary_default": False, "memory_turn_limit": 10,
+                  "instructions": "Seja objetivo ao orientar a equipe."},
+        )
+        assert saved.status_code == 200
+        chat = create_chat(owner, f"/api/v1/organizations/{org_id}/ai", csrf,
+                           findings[0], "normal")
+        question = ask(owner, f"/api/v1/organizations/{org_id}/ai", csrf,
+                       chat["id"], "O que conferir?")
+
+        def answer(context: dict[str, object], model: str, schema: object, system: str):
+            assert "Seja objetivo ao orientar a equipe." in system
+            assert "Cite IDs de evidência existentes" in system
+            result = CopilotResult(answer="Confira a compra citada.", evidence_ids=[evidence[0]])
+            return result, model
+
+        monkeypatch.setattr(worker, "call_structured", answer)
+        with Session(make_engine()) as db:
+            job = db.get(Job, uuid.UUID(question["job_id"]))
+            assert job is not None
+            job.status = "running"
+            db.commit()
+            process_copilot_job(db, job.id)
+        result = owner.get(f"{base}/questions/{question['question_id']}")
+        assert result.json()["status"] == "succeeded"
 
 
 def test_copilot_memory_is_tenant_scoped_and_temporary_isolated(
@@ -347,14 +387,35 @@ def test_policy_approval_idempotency_and_expiry(monkeypatch: pytest.MonkeyPatch)
         assert added.status_code == 201, added.text
         policy = owner.put(
             f"{base}/copilot/policy", headers=csrf_headers(owner_csrf),
-            json={"temporary_default": True, "memory_turn_limit": 0},
+            json={"temporary_default": True, "memory_turn_limit": 0,
+                  "instructions": "Explique os números de forma objetiva."},
         )
         assert policy.status_code == 200
+        assert policy.json()["instructions"] == "Explique os números de forma objetiva."
         assert analyst.get(f"{base}/copilot/policy").json()["temporary_default"] is True
         assert analyst.put(
             f"{base}/copilot/policy", headers=csrf_headers(analyst_csrf),
             json={"temporary_default": False, "memory_turn_limit": 10},
         ).status_code == 403
+        assert owner.put(
+            f"{base}/copilot/policy", headers=csrf_headers(owner_csrf),
+            json={"temporary_default": True, "memory_turn_limit": 0,
+                  "instructions": "x" * 2001},
+        ).status_code == 422
+        preserved = owner.put(
+            f"{base}/copilot/policy", headers=csrf_headers(owner_csrf),
+            json={"temporary_default": True, "memory_turn_limit": 0},
+        )
+        assert preserved.json()["instructions"] == "Explique os números de forma objetiva."
+        other_org = create_org(owner, owner_csrf, "copilot-other-instructions")
+        other_policy = owner.get(f"/api/v1/organizations/{other_org}/ai/copilot/policy")
+        assert other_policy.json()["instructions"] == ""
+        with Session(make_engine()) as db:
+            customized = system_message_for_organization(db, uuid.UUID(org_id), "Regras fixas.")
+            standard = system_message_for_organization(db, uuid.UUID(other_org), "Regras fixas.")
+        assert "Explique os números de forma objetiva." in customized
+        assert "nunca dispensam evidências" in customized
+        assert standard == "Regras fixas."
         pending = create_chat(analyst, base, analyst_csrf, findings[0], "normal")
         assert pending["status"] == "pending"
         assert analyst.post(

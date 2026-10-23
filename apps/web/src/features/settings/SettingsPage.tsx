@@ -17,6 +17,7 @@ export function SettingsPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [busy, setBusy] = useState(false);
+  const [activeTab, setActiveTab] = useState<"audit" | "ai">("audit");
   useEffect(() => {
     if (current) {
       setDelay(current.settings.delay_window_days || 90);
@@ -53,12 +54,18 @@ export function SettingsPage() {
         <div>
           <p className="eyebrow">ADMINISTRAÇÃO</p>
           <h1>Configurações</h1>
-          <p className="muted">
-            Parâmetros de auditoria da organização.
-          </p>
+          <p className="muted">Parâmetros de auditoria e comportamento da IA.</p>
         </div>
       </div>
-      <div>
+      <div className="item-tabs" role="tablist" aria-label="Configurações">
+        <button type="button" role="tab" aria-selected={activeTab === "audit"}
+          className={activeTab === "audit" ? "active" : ""}
+          onClick={() => setActiveTab("audit")}>Auditoria</button>
+        {canAdmin(role) && <button type="button" role="tab" aria-selected={activeTab === "ai"}
+          className={activeTab === "ai" ? "active" : ""}
+          onClick={() => setActiveTab("ai")}>IA</button>}
+      </div>
+      {activeTab === "audit" && <div>
         <section className="card">
           <h2>Parâmetros da organização</h2>
           <p className="muted">
@@ -108,9 +115,9 @@ export function SettingsPage() {
             </p>
           )}
         </section>
-      </div>
-      {canAdmin(role) && <CopilotSettings organizationId={organizationId} />}
-      <Feedback error={error} success={success} />
+      </div>}
+      {activeTab === "ai" && canAdmin(role) && <CopilotSettings organizationId={organizationId} />}
+      {activeTab === "audit" && <Feedback error={error} success={success} />}
     </>
   );
 }
