@@ -1,0 +1,10 @@
+{
+  "_example": "Synthetic 202 response; not a verified analysis result",
+  "id": "22222222-2222-4222-8222-222222222222",
+  "status": "queued",
+  "rule_set_version": "1.0.0",
+  "finding_count": 0,
+  "limitation": null,
+  "job_id": "33333333-3333-4333-8333-333333333333",
+  "import_ids": ["11111111-1111-4111-8111-111111111111"]
+}
