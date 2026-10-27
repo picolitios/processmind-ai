@@ -11,11 +11,17 @@ tests/test_audit_rules.py tests/test_contract.py -q` from `apps/api`:
 **4 passed**. An initial invocation with the global Python failed collection
 because it lacked SQLAlchemy and PyYAML; rerunning in the project venv passed.
 
-Variant checks: 12 tests passed; Ruff and strict mypy passed. Original
-regression (`test_audit_rules.py`, `test_contract.py`, `test_audit_api.py`,
-`test_copilot.py`): 4 passed, 13 skipped because `RUN_DB_TESTS` was unset.
+Variant ordinary suite: 12 passed, 1 optional database test skipped; Ruff and
+strict mypy passed. The optional end-to-end test passed against a fresh,
+migrated `processmind_power_e2e` PostgreSQL database. It exercised actual
+registration, session, CSV import, import worker, audit request, audit worker,
+findings, conversation/question routes, citation validation and outsider denial.
+Only Ollama inference was replaced by an explicitly labeled deterministic
+response. Reproduce with `scripts/test-live.ps1`.
+
+Original regression (`test_identity.py`, `test_audit_api.py`, `test_copilot.py`)
+on a separate migrated `processmind_power_demo` database: **16 passed**.
 Original `ruff check app` and `mypy app`: passed (66 source files checked by
-mypy). Database-backed regression and a live CLI journey were not executed;
-the running Compose database was not repurposed as an isolated test database.
-Cloud agent/app/flow tests require tenant access and have not been run. The mock
-contract suite alone does not prove live service connectivity.
+mypy). The initial no-database run of selected tests had 4 passed and 13 skipped.
+Cloud agent/app/flow tests require tenant access and have not been run. The
+running Compose application database was not used as a test database.

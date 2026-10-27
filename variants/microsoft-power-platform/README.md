@@ -56,6 +56,13 @@ The suite uses `httpx.MockTransport`; it never needs Microsoft credentials or
 mutates the original application. See [testing](specs/testing.md) for actual results.
 Synthetic contract payloads are in `examples/`; they are explicitly not real findings.
 
+To run the full local journey against a dedicated database (Docker PostgreSQL
+must be running), execute `powershell -File scripts/test-live.ps1`. It creates
+`processmind_power_e2e` only if absent, applies Alembic migrations and runs a
+real import → audit → finding → copilot contract test. Only the optional Ollama
+response is substituted with a deterministic test answer; the backend still
+validates its evidence citation. The script does not delete the test database.
+
 ## Architecture and setup
 
 Start with [architecture](specs/architecture.md), then the [deployment sequence](specs/deployment.md).
