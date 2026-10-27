@@ -12,7 +12,8 @@ tests/test_audit_rules.py tests/test_contract.py -q` from `apps/api`:
 because it lacked SQLAlchemy and PyYAML; rerunning in the project venv passed.
 
 Variant ordinary suite: 12 passed, 1 optional database test skipped; Ruff and
-strict mypy passed. The optional end-to-end test passed against a fresh,
+strict mypy passed. `pip wheel --no-deps .` built the package successfully.
+The optional end-to-end test passed against a fresh,
 migrated `processmind_power_e2e` PostgreSQL database. It exercised actual
 registration, session, CSV import, import worker, audit request, audit worker,
 findings, conversation/question routes, citation validation and outsider denial.
