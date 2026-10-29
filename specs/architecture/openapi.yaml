@@ -459,12 +459,13 @@ paths:
     get:
       tags: [enterprise-agent]
       summary: Consultar capacidades configuradas da empresa
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' } ]
       responses:
         '200': { description: Flags do agente e da ferramenta de compras }
     put:
       tags: [enterprise-agent]
       summary: Habilitar agente e ferramenta de compras como proprietário ou administrador
-      parameters: [ { $ref: '#/components/parameters/Csrf' } ]
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/Csrf' } ]
       requestBody: { required: true, content: { application/json: { schema: { type: object, required: [agent_enabled, purchasing_enabled], properties: { agent_enabled: { type: boolean }, purchasing_enabled: { type: boolean } } } } } }
       responses:
         '200': { description: Configuração salva }
@@ -473,18 +474,20 @@ paths:
     get:
       tags: [enterprise-agent]
       summary: Descobrir capacidades efetivas no contexto do membro
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' } ]
       responses:
         '200': { description: Agente, ferramentas e fontes disponíveis }
   /organizations/{organization_id}/integrations/knowledge:
     get:
       tags: [enterprise-agent]
       summary: Listar fontes textuais autorizadas da empresa com paginação
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/Limit' }, { $ref: '#/components/parameters/Cursor' } ]
       responses:
         '200': { description: Página de fontes sem conteúdo integral }
     post:
       tags: [enterprise-agent]
       summary: Cadastrar fonte textual gerenciada por proprietário ou administrador
-      parameters: [ { $ref: '#/components/parameters/Csrf' } ]
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/Csrf' } ]
       requestBody: { required: true, content: { application/json: { schema: { type: object, required: [title, content], properties: { title: { type: string, maxLength: 160 }, content: { type: string, maxLength: 20000 }, enabled: { type: boolean } } } } } }
       responses:
         '201': { description: Fonte criada }
@@ -493,13 +496,14 @@ paths:
     get:
       tags: [enterprise-agent]
       summary: Consultar documento autorizado dentro da empresa
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/SourceId' } ]
       responses:
         '200': { description: Fonte textual e revisão atual }
         '404': { $ref: '#/components/responses/NotFound' }
     patch:
       tags: [enterprise-agent]
       summary: Atualizar ou revogar fonte como proprietário ou administrador
-      parameters: [ { $ref: '#/components/parameters/Csrf' } ]
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/SourceId' }, { $ref: '#/components/parameters/Csrf' } ]
       responses:
         '200': { description: Fonte atualizada e revisão incrementada }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -508,6 +512,7 @@ components:
     sessionCookie: { type: apiKey, in: cookie, name: pm_session }
   parameters:
     OrganizationId: { name: organization_id, in: path, required: true, schema: { type: string, format: uuid } }
+    SourceId: { name: source_id, in: path, required: true, schema: { type: string, format: uuid } }
     UserId: { name: user_id, in: path, required: true, schema: { type: string, format: uuid } }
     ImportId: { name: import_id, in: path, required: true, schema: { type: string, format: uuid } }
     AuditId: { name: audit_id, in: path, required: true, schema: { type: string, format: uuid } }
