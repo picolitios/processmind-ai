@@ -110,6 +110,13 @@ test("cadastro até resolução de um caso", async ({ page }) => {
   await auditCopilot.getByRole("button", { name: /Ativo/ }).click();
   await expect(auditCopilot.getByText("Quais evidências devo conferir?")).toBeVisible();
 
+  await page.getByRole("link", { name: "Configurações" }).click();
+  await page.getByRole("tab", { name: "Agente e fontes" }).click();
+  await page.getByLabel("Agente flutuante ativo").check();
+  await page.getByRole("button", { name: "Salvar capacidades" }).click();
+  await expect(page.getByRole("link", { name: "Agente da empresa" })).toBeVisible();
+  await page.goBack();
+  await expect(page).toHaveURL(auditUrl);
   await page.getByRole("link", { name: "Agente da empresa" }).click();
   const companyAgent = page.getByRole("region", { name: "Agente da empresa" });
   await expect(companyAgent).toBeVisible();
