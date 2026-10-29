@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: ProcessMind AI API (contrato alvo do MVP)
+  title: ProcessMind AI API (MVP e evolução do agente)
   version: 0.1.0
   description: Contrato planejado. Implementação incremental por fases; rotas ausentes não são simuladas.
 servers:
@@ -15,6 +15,7 @@ tags:
   - name: analytics
   - name: ai
   - name: copilot
+  - name: enterprise-agent
   - name: health
 security:
   - sessionCookie: []
@@ -454,6 +455,54 @@ paths:
       responses:
         '200': { description: Pronto, content: { application/json: { schema: { $ref: '#/components/schemas/Health' } } } }
         '503': { description: Indisponível, content: { application/json: { schema: { $ref: '#/components/schemas/Health' } } } }
+  /organizations/{organization_id}/agent/configuration:
+    get:
+      tags: [enterprise-agent]
+      summary: Consultar capacidades configuradas da empresa
+      responses:
+        '200': { description: Flags do agente e da ferramenta de compras }
+    put:
+      tags: [enterprise-agent]
+      summary: Habilitar agente e ferramenta de compras como proprietário ou administrador
+      parameters: [ { $ref: '#/components/parameters/Csrf' } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [agent_enabled, purchasing_enabled], properties: { agent_enabled: { type: boolean }, purchasing_enabled: { type: boolean } } } } } }
+      responses:
+        '200': { description: Configuração salva }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /organizations/{organization_id}/agent/capabilities:
+    get:
+      tags: [enterprise-agent]
+      summary: Descobrir capacidades efetivas no contexto do membro
+      responses:
+        '200': { description: Agente, ferramentas e fontes disponíveis }
+  /organizations/{organization_id}/integrations/knowledge:
+    get:
+      tags: [enterprise-agent]
+      summary: Listar fontes textuais autorizadas da empresa com paginação
+      responses:
+        '200': { description: Página de fontes sem conteúdo integral }
+    post:
+      tags: [enterprise-agent]
+      summary: Cadastrar fonte textual gerenciada por proprietário ou administrador
+      parameters: [ { $ref: '#/components/parameters/Csrf' } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [title, content], properties: { title: { type: string, maxLength: 160 }, content: { type: string, maxLength: 20000 }, enabled: { type: boolean } } } } } }
+      responses:
+        '201': { description: Fonte criada }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /organizations/{organization_id}/integrations/knowledge/{source_id}:
+    get:
+      tags: [enterprise-agent]
+      summary: Consultar documento autorizado dentro da empresa
+      responses:
+        '200': { description: Fonte textual e revisão atual }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [enterprise-agent]
+      summary: Atualizar ou revogar fonte como proprietário ou administrador
+      parameters: [ { $ref: '#/components/parameters/Csrf' } ]
+      responses:
+        '200': { description: Fonte atualizada e revisão incrementada }
+        '403': { $ref: '#/components/responses/Forbidden' }
 components:
   securitySchemes:
     sessionCookie: { type: apiKey, in: cookie, name: pm_session }

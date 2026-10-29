@@ -7,6 +7,7 @@ import { Feedback } from "../../lib/useResource";
 import type { ShellContext } from "../shell/Shell";
 import { canAdmin } from "../shell/Shell";
 import { CopilotSettings } from "../copilot/CopilotSettings";
+import { AgentAdministration } from "../copilot/AgentAdministration";
 
 export function SettingsPage() {
   const { organizationId, role, current } = useOutletContext<ShellContext>();
@@ -17,7 +18,7 @@ export function SettingsPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [busy, setBusy] = useState(false);
-  const [activeTab, setActiveTab] = useState<"audit" | "ai">("audit");
+  const [activeTab, setActiveTab] = useState<"audit" | "ai" | "agent">("audit");
   useEffect(() => {
     if (current) {
       setDelay(current.settings.delay_window_days || 90);
@@ -64,6 +65,9 @@ export function SettingsPage() {
         {canAdmin(role) && <button type="button" role="tab" aria-selected={activeTab === "ai"}
           className={activeTab === "ai" ? "active" : ""}
           onClick={() => setActiveTab("ai")}>IA</button>}
+        {canAdmin(role) && <button type="button" role="tab" aria-selected={activeTab === "agent"}
+          className={activeTab === "agent" ? "active" : ""}
+          onClick={() => setActiveTab("agent")}>Agente e fontes</button>}
       </div>
       {activeTab === "audit" && <div>
         <section className="card">
@@ -117,6 +121,7 @@ export function SettingsPage() {
         </section>
       </div>}
       {activeTab === "ai" && canAdmin(role) && <CopilotSettings organizationId={organizationId} />}
+      {activeTab === "agent" && canAdmin(role) && <AgentAdministration organizationId={organizationId} />}
       {activeTab === "audit" && <Feedback error={error} success={success} />}
     </>
   );

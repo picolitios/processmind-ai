@@ -22,6 +22,7 @@ export type CopilotTurn = {
   answer: string | null;
   limitation: string | null;
   citations: { evidence_id: string; finding_id: string; audit_id: string }[];
+  knowledge_citations: { source_id: string; title: string; revision: number }[];
   created_at: string;
 };
 export type CopilotDetail = {

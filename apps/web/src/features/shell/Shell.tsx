@@ -4,7 +4,9 @@ import { NavLink, Outlet, useLocation, useNavigate, useParams } from "react-rout
 import { useAuth } from "../auth/AuthProvider";
 import { useResource } from "../../lib/useResource";
 import type { Organization, Role } from "../../lib/api";
+import { orgPath } from "../../lib/api";
 import { ThemeToggle } from "../theme/ThemeProvider";
+import { FloatingAgent } from "../copilot/FloatingAgent";
 
 const nav = [
   ["dashboard", "Visão geral", "◫"],
@@ -37,6 +39,10 @@ export function Shell() {
   const [hasPreviousScreen, setHasPreviousScreen] = useState(false);
   const { session, logout } = useAuth();
   const orgs = useResource<Organization[]>(["organizations"], "/organizations");
+  const agent = useResource<{ can_chat: boolean }>(
+    ["agent-capabilities", organizationId],
+    `${orgPath(organizationId || "")}/agent/capabilities`, Boolean(organizationId), 15000,
+  );
   const current = orgs.data?.find((org) => org.id === organizationId);
   const role = session?.memberships.find(
     (member) => member.organization_id === organizationId,
@@ -91,7 +97,7 @@ export function Shell() {
         <nav aria-label="Principal">
           <p className="nav-heading">GERENCIAMENTO</p>
           {organizationId &&
-            nav.filter(([path]) => path !== "agent" || canWrite(role)).map(([path, label, icon]) => (
+            nav.filter(([path]) => path !== "agent" || agent.data?.can_chat).map(([path, label, icon]) => (
               <NavLink
                 key={path}
                 to={`/organizations/${organizationId}/${path}`}
@@ -147,6 +153,7 @@ export function Shell() {
           />
         </main>
       </div>
+      {organizationId && <FloatingAgent key={organizationId} organizationId={organizationId} />}
     </div>
   );
 }

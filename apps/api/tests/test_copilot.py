@@ -255,6 +255,11 @@ def test_organization_agent_uses_only_its_completed_audit_evidence(
             failed_run.status = "failed"
             db.commit()
         base = f"/api/v1/organizations/{org_id}/ai"
+        assert owner.put(
+            f"/api/v1/organizations/{org_id}/agent/configuration",
+            headers=csrf_headers(csrf),
+            json={"agent_enabled": True, "purchasing_enabled": True},
+        ).status_code == 200
         created = owner.post(
             f"{base}/copilot/conversations", headers=csrf_headers(csrf),
             json={"scope": "organization", "mode": "normal"},
@@ -349,6 +354,11 @@ def test_organization_agent_limits_context_and_denies_viewer(
         )
         assert created.status_code == 201, created.text
         base = f"/api/v1/organizations/{org_id}/ai"
+        assert owner.put(
+            f"/api/v1/organizations/{org_id}/agent/configuration",
+            headers=csrf_headers(csrf),
+            json={"agent_enabled": True, "purchasing_enabled": True},
+        ).status_code == 200
         denied = viewer.post(
             f"{base}/copilot/conversations", headers=csrf_headers(viewer_csrf),
             json={"scope": "organization", "mode": "temporary"},

@@ -12,9 +12,9 @@ class PolicyInput(BaseModel):
 
     temporary_default: bool
     memory_turn_limit: int = Field(ge=0, le=20)
-    instructions: Annotated[
-        str, StringConstraints(strip_whitespace=True, max_length=2000)
-    ] | None = None
+    instructions: (
+        Annotated[str, StringConstraints(strip_whitespace=True, max_length=2000)] | None
+    ) = None
 
 
 class ConversationInput(BaseModel):
@@ -69,5 +69,28 @@ class CopilotResult(BaseModel):
             raise ValueError("invalid_evidence_reference")
         # Markdown links and URLs are omitted in this bounded first version; only
         # server-produced citation links are displayed by the web interface.
+        if re.search(r"https?://|\]\(", self.answer, re.IGNORECASE):
+            raise ValueError("unexpected_link")
+
+
+class KnowledgeResult(BaseModel):
+    """A document answer must cite only active sources sent to the model."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    answer: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4000)]
+    knowledge_ids: list[uuid.UUID] = Field(min_length=1, max_length=5)
+
+    def validate_sources(self, allowed: set[uuid.UUID]) -> None:
+        if (
+            len(set(self.knowledge_ids)) != len(self.knowledge_ids)
+            or not set(self.knowledge_ids) <= allowed
+        ):
+            raise ValueError("invalid_knowledge_reference")
+        if any(
+            uuid.UUID(match.group()) not in allowed
+            for match in UUID_REFERENCE.finditer(self.answer)
+        ):
+            raise ValueError("invalid_knowledge_reference")
         if re.search(r"https?://|\]\(", self.answer, re.IGNORECASE):
             raise ValueError("unexpected_link")

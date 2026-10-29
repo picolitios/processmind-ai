@@ -91,6 +91,8 @@ class CopilotTurn(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="queued")
     answer: Mapped[str | None] = mapped_column(Text)
     evidence_ids: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+    knowledge_ids: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+    knowledge_revisions: Mapped[dict[str, int]] = mapped_column(JSONB, nullable=False, default=dict)
     context_hash: Mapped[str | None] = mapped_column(String(64))
     model: Mapped[str | None] = mapped_column(String(120))
     limitation: Mapped[str | None] = mapped_column(String(500))

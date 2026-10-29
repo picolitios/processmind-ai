@@ -70,6 +70,11 @@ const OrganizationAgentPage = lazy(() =>
     default: OrganizationAgentPage,
   })),
 );
+const KnowledgeSourcePage = lazy(() =>
+  import("./features/copilot/KnowledgeSourcePage").then(({ KnowledgeSourcePage }) => ({
+    default: KnowledgeSourcePage,
+  })),
+);
 
 function Router() {
   const { session, loading } = useAuth();
@@ -145,6 +150,8 @@ function Router() {
             path="/organizations/:organizationId/agent"
             element={<OrganizationAgentPage />}
           />
+          <Route path="/organizations/:organizationId/knowledge/:sourceId"
+            element={<KnowledgeSourcePage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

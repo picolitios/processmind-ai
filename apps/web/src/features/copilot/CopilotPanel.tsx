@@ -168,7 +168,7 @@ export function CopilotPanel({ organizationId, findingId, auditId, scope }: Prop
       <h2>{scope === "organization" ? "Agente da empresa" : "Copiloto conversacional"}</h2>
       <p className="muted">
         {scope === "organization"
-          ? "Analisa auditorias concluídas, achados e evidências desta empresa. Confira as citações; o agente não altera dados."
+          ? "Consulta a documentação autorizada e, quando habilitado, analisa achados de compras. Confira as fontes; o agente não altera dados."
           : "Respostas auxiliares baseadas em evidências. Confira as citações antes de decidir; a auditoria e os casos não são alterados pelo chat."}
       </p>
       <QueryState loading={policy.isLoading} error={policy.error} />
@@ -244,7 +244,7 @@ export function CopilotPanel({ organizationId, findingId, auditId, scope }: Prop
                 <ol className="copilot-turns">
                   {turns.map((turn) => <CopilotTurnView key={turn.id} turn={turn} organizationId={organizationId} />)}
                 </ol>
-              ) : <p className="empty">{scope === "organization" ? "Faça uma pergunta sobre as auditorias e evidências da empresa." : "Faça a primeira pergunta sobre as evidências deste alvo."}</p>}
+              ) : <p className="empty">{scope === "organization" ? "Pergunte sobre um processo documentado ou peça uma análise de compras." : "Faça a primeira pergunta sobre as evidências deste alvo."}</p>}
               {detail.data.conversation.status === "active" && (
                 <form onSubmit={sendQuestion}>
                   <label>
@@ -286,6 +286,13 @@ function CopilotTurnView({ turn, organizationId }: { turn: CopilotTurn; organiza
           ))}
         </ul>
       )}
+      {turn.knowledge_citations?.length > 0 && <ul aria-label="Fontes documentais">
+        {turn.knowledge_citations.map((item) => <li key={item.source_id}>
+          <Link to={`/organizations/${organizationId}/knowledge/${item.source_id}`}>
+            {item.title} · revisão {item.revision}
+          </Link>
+        </li>)}
+      </ul>}
     </li>
   );
 }

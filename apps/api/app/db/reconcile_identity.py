@@ -8,6 +8,7 @@ from sqlalchemy.engine import Connection, Engine
 
 # Keep this inventory explicit: new tenant tables require a reviewed reference policy.
 BUSINESS_TENANT_TABLES = (
+    "agent_configurations",
     "ai_analyses",
     "audit_cases",
     "audit_configurations",
@@ -22,6 +23,7 @@ BUSINESS_TENANT_TABLES = (
     "import_batches",
     "import_rows",
     "jobs",
+    "knowledge_sources",
     "outbox_events",
     "purchases",
     "suppliers",
@@ -62,6 +64,9 @@ def references() -> tuple[Reference, ...]:
         Reference("audit_runs", "requester_id", "users"),
         Reference("ai_analyses", "requester_id", "users"),
         Reference("business_audit_events", "actor_user_id", "users", optional=True),
+        Reference("agent_configurations", "updated_by_user_id", "users", optional=True),
+        Reference("knowledge_sources", "created_by_user_id", "users"),
+        Reference("knowledge_sources", "updated_by_user_id", "users"),
     )
     members = (
         Reference(

@@ -1,5 +1,11 @@
 # Plano, backlog e dependências
 
+`specs/enterprise-ai-agent-evolution.md` registra a evolução priorizada do agente
+empresarial após o MVP: configuração por empresa, documentação autorizada,
+ferramenta de compras existente e painel flutuante. A nova entrega amplia a
+spec consultiva `specs/architecture/organization-copilot-agent-v1.md` apenas
+para chats de organização; os contratos antigos por achado/auditoria continuam.
+
 ## Demonstração externa
 
 `specs/architecture/quick-tunnel-demo-v1.md` define a demonstração pública
