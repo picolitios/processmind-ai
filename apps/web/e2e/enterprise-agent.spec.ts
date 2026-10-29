@@ -37,9 +37,9 @@ test("empresa habilita fonte e abre agente flutuante sem sair da tela", async ({
   await dialog.getByRole("button", { name: "Novo chat" }).click();
   await dialog.getByLabel("Sua pergunta").fill("Como funciona a aprovação de compras?");
   await dialog.getByRole("button", { name: "Enviar pergunta" }).click();
-  await expect(dialog.getByText("Como funciona a aprovação de compras?", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("Pergunta: Como funciona a aprovação de compras?", { exact: true })).toBeVisible();
   await dialog.getByRole("button", { name: "Fechar agente" }).click();
   await expect(dialog).toBeHidden();
   await page.getByRole("button", { name: "Abrir agente" }).click();
-  await expect(dialog.getByText("Como funciona a aprovação de compras?", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("Pergunta: Como funciona a aprovação de compras?", { exact: true })).toBeVisible();
 });
