@@ -21,11 +21,31 @@ O detalhe do caso mostra atribuição, comentários e histórico. A opção de e
 
 Nos detalhes de um **achado** ou de uma **auditoria concluída**, Owner, Admin e Analyst podem abrir um chat pelo painel **Copiloto conversacional**. Escolha o tipo antes de selecionar **Novo chat**:
 
-Em **Agente da empresa**, no menu lateral, os mesmos papéis podem criar um chat
-consultivo que reúne achados e evidências de auditorias concluídas da organização
-ativa. Cada pergunta seleciona um contexto limitado e mostra citações; o agente
-não executa ações nem consulta compras brutas ou casos. Perguntas sobre dados
-fora do contexto recuperado podem receber uma limitação. Viewer não inicia chats.
+Em **Configurações → Agente e fontes**, Owner/Admin cadastram documentação
+textual autorizada da empresa, habilitam as fontes e ativam o agente. A ferramenta
+de análise de compras tem um controle separado. A fonte gerenciada é local ao
+ambiente da empresa; ela ainda não representa conexão automática a ERP ou
+repositório externo. Use somente conteúdo sintético na demonstração pública.
+
+### Documentação pública do GitHub
+
+Em **Configurações → Agente e fontes → GitHub público**, o proprietário ou
+administrador pode informar `picolitios`, `processmind-ai`, `README.md` e um
+título. **Verificar e importar** consulta de verdade a API pública do GitHub,
+guarda uma cópia com SHA e data e a torna disponível ao agente se habilitada.
+O agente cita a página interna da cópia; nela há um link separado para a versão
+atual no GitHub. **Atualizar do GitHub** faz nova consulta manual. Desabilitar
+a fonte impede novas respostas baseadas nela. Essa integração lê somente
+arquivos Markdown/TXT públicos e não pede token nem acessa repositórios privados.
+
+Quando ativado, o botão **Abrir agente** aparece no canto das telas da empresa.
+Ele abre o chat sem sair da página; fechar e reabrir preserva o chat temporário
+enquanto a página estiver carregada. Perguntas sobre processos consultam trechos
+de fontes habilitadas e citam o documento. Pedidos de análise de compras usam
+achados e evidências de auditorias concluídas se a ferramenta estiver habilitada.
+O agente não executa ações, não consulta compras brutas ou casos e não acessa
+outras empresas. Uma fonte alterada ou revogada deixa de ser citada como atual.
+Viewer pode consultar fontes autorizadas, mas não inicia chats.
 
 - **Normal:** perguntas e respostas ficam no histórico da organização. Abra um item em **Meus chats salvos** para continuar após recarregar a página. Outros usuários não leem sua transcrição, mas turnos de chats normais ativos da mesma organização podem compor a memória compartilhada do copiloto. Excluir o chat remove seus turnos dessa memória.
 - **Temporário:** usa as evidências do alvo e as perguntas anteriores do próprio chat. Não usa outros chats nem entra na memória compartilhada. O painel não o restaura após recarregar; a transcrição transitória expira após uma hora sem atividade.

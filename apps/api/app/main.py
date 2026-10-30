@@ -10,6 +10,7 @@ from app.features.audit.configuration_api import router as audit_configuration_r
 from app.features.audit.routes import router as audit_router
 from app.features.cases.routes import router as cases_router
 from app.features.copilot.routes import router as copilot_router
+from app.features.enterprise_agent.routes import router as enterprise_agent_router
 from app.features.identity.routes import auth_router, organizations_router
 from app.features.ingestion.routes import router as ingestion_router
 
@@ -27,6 +28,7 @@ def create_app() -> FastAPI:
     application.include_router(audit_configuration_router)
     application.include_router(ai_router)
     application.include_router(copilot_router)
+    application.include_router(enterprise_agent_router)
     application.include_router(cases_router)
     application.include_router(analytics_router)
     return application

@@ -110,11 +110,18 @@ test("cadastro até resolução de um caso", async ({ page }) => {
   await auditCopilot.getByRole("button", { name: /Ativo/ }).click();
   await expect(auditCopilot.getByText("Quais evidências devo conferir?")).toBeVisible();
 
+  await page.getByRole("link", { name: "Configurações" }).click();
+  await page.getByRole("tab", { name: "Agente e fontes" }).click();
+  await page.getByLabel("Agente flutuante ativo").check();
+  await page.getByRole("button", { name: "Salvar capacidades" }).click();
+  await expect(page.getByRole("link", { name: "Agente da empresa" })).toBeVisible();
+  await page.goBack();
+  await expect(page).toHaveURL(auditUrl);
   await page.getByRole("link", { name: "Agente da empresa" }).click();
   const companyAgent = page.getByRole("region", { name: "Agente da empresa" });
   await expect(companyAgent).toBeVisible();
   await companyAgent.getByRole("button", { name: "Novo chat" }).click();
-  await companyAgent.getByLabel("Sua pergunta").fill("Quais achados da empresa devo revisar?");
+  await companyAgent.getByLabel("Sua pergunta").fill("Analise os alertas de compras da empresa e cite as evidências.");
   await companyAgent.getByRole("button", { name: "Enviar pergunta" }).click();
   const companyTurn = companyAgent.locator(".copilot-turn").first();
   await expect(companyTurn.locator("p").filter({
@@ -130,7 +137,7 @@ test("cadastro até resolução de um caso", async ({ page }) => {
   await page.getByRole("link", { name: "Agente da empresa" }).click();
   await page.reload();
   await companyAgent.getByRole("button", { name: /Ativo/ }).click();
-  await expect(companyAgent.getByText("Quais achados da empresa devo revisar?")).toBeVisible();
+  await expect(companyAgent.getByText("Analise os alertas de compras da empresa e cite as evidências.")).toBeVisible();
 
   await page.getByRole("link", { name: "Alertas" }).click();
   await expect(page.getByRole("heading", { name: "Achados" })).toBeVisible();
