@@ -27,6 +27,17 @@ de análise de compras tem um controle separado. A fonte gerenciada é local ao
 ambiente da empresa; ela ainda não representa conexão automática a ERP ou
 repositório externo. Use somente conteúdo sintético na demonstração pública.
 
+### Documentação pública do GitHub
+
+Em **Configurações → Agente e fontes → GitHub público**, o proprietário ou
+administrador pode informar `picolitios`, `processmind-ai`, `README.md` e um
+título. **Verificar e importar** consulta de verdade a API pública do GitHub,
+guarda uma cópia com SHA e data e a torna disponível ao agente se habilitada.
+O agente cita a página interna da cópia; nela há um link separado para a versão
+atual no GitHub. **Atualizar do GitHub** faz nova consulta manual. Desabilitar
+a fonte impede novas respostas baseadas nela. Essa integração lê somente
+arquivos Markdown/TXT públicos e não pede token nem acessa repositórios privados.
+
 Quando ativado, o botão **Abrir agente** aparece no canto das telas da empresa.
 Ele abre o chat sem sair da página; fechar e reabrir preserva o chat temporário
 enquanto a página estiver carregada. Perguntas sobre processos consultam trechos

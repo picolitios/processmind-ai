@@ -37,7 +37,7 @@ class AgentConfiguration(Base):
 
 
 class KnowledgeSource(Base):
-    """Documento textual gerenciado, com autorização e revogação por tenant."""
+    """Documento autorizado, gerenciado ou copiado de um repositório público."""
 
     __tablename__ = "knowledge_sources"
 
@@ -45,6 +45,14 @@ class KnowledgeSource(Base):
     organization_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
     title: Mapped[str] = mapped_column(String(160), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    source_type: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="managed_knowledge", server_default="managed_knowledge"
+    )
+    github_owner: Mapped[str | None] = mapped_column(String(39))
+    github_repo: Mapped[str | None] = mapped_column(String(100))
+    github_path: Mapped[str | None] = mapped_column(String(240))
+    github_blob_sha: Mapped[str | None] = mapped_column(String(40))
+    github_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     created_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
@@ -62,4 +70,17 @@ class KnowledgeSource(Base):
         CheckConstraint("char_length(title) BETWEEN 1 AND 160", name="ck_knowledge_title"),
         CheckConstraint("char_length(content) BETWEEN 1 AND 20000", name="ck_knowledge_content"),
         CheckConstraint("revision > 0", name="ck_knowledge_revision"),
+        CheckConstraint(
+            "(source_type = 'managed_knowledge' AND github_owner IS NULL "
+            "AND github_repo IS NULL AND github_path IS NULL AND github_blob_sha IS NULL "
+            "AND github_checked_at IS NULL) "
+            "OR (source_type = 'github_public' AND github_owner IS NOT NULL "
+            "AND github_repo IS NOT NULL AND github_path IS NOT NULL "
+            "AND github_blob_sha IS NOT NULL AND github_checked_at IS NOT NULL)",
+            name="ck_knowledge_origin",
+        ),
+        Index(
+            "uq_knowledge_github_path", "organization_id", "github_owner", "github_repo",
+            "github_path", unique=True,
+        ),
     )

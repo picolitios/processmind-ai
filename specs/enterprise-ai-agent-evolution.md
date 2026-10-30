@@ -29,10 +29,12 @@ empresarial implementada para reutilizar.
    estado; não se inventa uma etapa de aprovação ou classificação.
 2. Owner/Admin adiciona uma fonte de **documentação gerenciada** à organização,
    informando título e conteúdo textual de um procedimento autorizado, e a
-   habilita. Esse é o primeiro conector: dados controlados pela própria empresa,
+   habilita. Essa fonte local contém dados controlados pela própria empresa,
    sem credencial externa nem falsa indicação de conexão a ERP. A fonte pode ser
-   desabilitada; sua revisão e autor ficam registrados. Integrações REST/OAuth
-   ficam para a Fase 4 após definição de provedor/credenciais/escopos.
+   desabilitada; sua revisão e autor ficam registrados. A primeira integração
+   externa aprovada é o conector de documentação pública do GitHub, definido
+   em `specs/architecture/github-public-document-connector-v1.md`. REST
+   genérico/OAuth continuam posteriores, após provedor/escopos definidos.
 3. Owner/Admin habilita separadamente o agente e a ferramenta de auditoria de
    compras. Por padrão em organizações legadas, a ferramenta de compras mantém
    o comportamento atual; o novo agente fica desabilitado até configuração.
@@ -101,8 +103,9 @@ indisponível. Coleções têm limite/cursor; mutações são auditadas sem text
 Fase 0: este documento e revisão das divergências. Fase 1: catálogo mínimo,
 ativação, painel flutuante e perguntas sobre documentação. Fase 2: integrar
 compras existentes como ferramenta selecionável. Fase 3: gestão e revogação de
-fontes por organização. Fase 4: conector REST real somente após fonte autorizada
-e modelo seguro de credenciais. Fase 5: otimizações baseadas em medição.
+fontes por organização. Fase 4: primeiro conector externo, limitado a arquivos
+públicos do GitHub e sincronização manual sem credenciais. Fase 5: otimizações
+baseadas em medição.
 
 Gates da primeira versão: migração upgrade/downgrade em banco descartável;
 Ruff, Mypy, Pytest, lint, tipos, build, Vitest, E2E Compose. Cobrir tenant

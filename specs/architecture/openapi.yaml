@@ -507,6 +507,28 @@ paths:
       responses:
         '200': { description: Fonte atualizada e revisão incrementada }
         '403': { $ref: '#/components/responses/Forbidden' }
+  /organizations/{organization_id}/integrations/github-public/documents:
+    post:
+      tags: [enterprise-agent]
+      summary: Verificar e importar arquivo Markdown/TXT de repositório público do GitHub
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/Csrf' } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [owner, repo, path, title], properties: { owner: { type: string, maxLength: 39 }, repo: { type: string, maxLength: 100 }, path: { type: string, maxLength: 240 }, title: { type: string, maxLength: 160 }, enabled: { type: boolean } } } } } }
+      responses:
+        '201': { description: Fonte externa verificada e copiada com SHA do blob }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '503': { description: GitHub indisponível ou limite de consultas atingido }
+  /organizations/{organization_id}/integrations/github-public/documents/{source_id}/refresh:
+    post:
+      tags: [enterprise-agent]
+      summary: Atualizar cópia e revisão após nova verificação no GitHub
+      parameters: [ { $ref: '#/components/parameters/OrganizationId' }, { $ref: '#/components/parameters/SourceId' }, { $ref: '#/components/parameters/Csrf' } ]
+      responses:
+        '200': { description: Fonte verificada; revisão incrementada apenas se blob mudou }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { description: GitHub indisponível ou limite de consultas atingido }
 components:
   securitySchemes:
     sessionCookie: { type: apiKey, in: cookie, name: pm_session }

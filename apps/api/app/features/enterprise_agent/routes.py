@@ -5,12 +5,19 @@ from typing import Any
 
 from fastapi import APIRouter, Query
 from sqlalchemy import and_, or_, select
+from sqlalchemy.exc import IntegrityError
 
 from app.core.errors import ApiError
 from app.features.audit.routes import make_cursor
 from app.features.audit_trail.events import append_business_event
+from app.features.enterprise_agent.github_public import fetch_public_document
 from app.features.enterprise_agent.models import AgentConfiguration, KnowledgeSource
-from app.features.enterprise_agent.schemas import ConfigurationInput, KnowledgeInput, KnowledgePatch
+from app.features.enterprise_agent.schemas import (
+    ConfigurationInput,
+    GitHubDocumentInput,
+    KnowledgeInput,
+    KnowledgePatch,
+)
 from app.features.identity.client import BusinessAuth as Auth
 from app.features.identity.client import BusinessCsrfAuth as CsrfAuth
 from app.features.identity.client import require_business_membership as require_membership
@@ -32,7 +39,7 @@ def source_view(source: KnowledgeSource, *, include_content: bool = False) -> di
     result = {
         "id": source.id,
         "title": source.title,
-        "type": "managed_knowledge",
+        "type": source.source_type,
         "enabled": source.enabled,
         "revision": source.revision,
         "created_by_user_id": source.created_by_user_id,
@@ -40,6 +47,18 @@ def source_view(source: KnowledgeSource, *, include_content: bool = False) -> di
         "created_at": source.created_at,
         "updated_at": source.updated_at,
     }
+    if source.source_type == "github_public":
+        result.update({
+            "github_owner": source.github_owner,
+            "github_repo": source.github_repo,
+            "github_path": source.github_path,
+            "github_blob_sha": source.github_blob_sha,
+            "github_checked_at": source.github_checked_at,
+            "github_url": (
+                f"https://github.com/{source.github_owner}/{source.github_repo}"
+                f"/blob/HEAD/{source.github_path}"
+            ),
+        })
     if include_content:
         result["content"] = source.content
     return result
@@ -103,12 +122,31 @@ def get_capabilities(organization_id: uuid.UUID, db: DB, auth: Auth) -> dict[str
         )
         .limit(1)
     ).first()
+    managed_count = db.scalars(
+        select(KnowledgeSource.id)
+        .where(
+            KnowledgeSource.organization_id == organization_id,
+            KnowledgeSource.enabled.is_(True),
+            KnowledgeSource.source_type == "managed_knowledge",
+        )
+        .limit(1)
+    ).first()
+    github_count = db.scalars(
+        select(KnowledgeSource.id)
+        .where(
+            KnowledgeSource.organization_id == organization_id,
+            KnowledgeSource.enabled.is_(True),
+            KnowledgeSource.source_type == "github_public",
+        )
+        .limit(1)
+    ).first()
     return {
         **config,
         "can_chat": config["agent_enabled"] and membership.role in {"owner", "admin", "analyst"},
         "knowledge_available": document_count is not None,
         "tools": [
-            {"id": "managed_knowledge", "enabled": document_count is not None},
+            {"id": "managed_knowledge", "enabled": managed_count is not None},
+            {"id": "github_public", "enabled": github_count is not None},
             {"id": "purchasing_audit", "enabled": config["purchasing_enabled"]},
         ],
     }
@@ -194,6 +232,8 @@ def patch_source(
     if not data.model_fields_set:
         raise ApiError(422, "empty_update", "Informe ao menos uma alteração")
     source = find_source(db, organization_id, source_id, lock=True)
+    if source.source_type == "github_public" and "content" in data.model_fields_set:
+        raise ApiError(422, "managed_content_only", "Atualize o documento pelo GitHub")
     for field in data.model_fields_set:
         value = getattr(data, field)
         if value is None:
@@ -209,6 +249,79 @@ def patch_source(
         "knowledge_source",
         source.id,
         {"enabled": source.enabled, "revision": source.revision},
+    )
+    db.commit()
+    return source_view(source, include_content=True)
+
+
+@router.post("/integrations/github-public/documents", status_code=201)
+def import_github_document(
+    organization_id: uuid.UUID, data: GitHubDocumentInput, db: DB, auth: CsrfAuth,
+) -> dict[str, Any]:
+    """Owner/Admin explicitly authorizes one real public repository document."""
+    require_membership(db, auth, organization_id, MANAGERS)
+    existing = db.scalar(select(KnowledgeSource.id).where(
+        KnowledgeSource.organization_id == organization_id,
+        KnowledgeSource.github_owner == data.owner,
+        KnowledgeSource.github_repo == data.repo,
+        KnowledgeSource.github_path == data.path,
+    ))
+    if existing is not None:
+        raise ApiError(409, "github_document_exists", "Este arquivo já foi importado")
+    document = fetch_public_document(data.owner, data.repo, data.path)
+    source = KnowledgeSource(
+        organization_id=organization_id,
+        title=data.title,
+        content=document.content,
+        source_type="github_public",
+        github_owner=data.owner,
+        github_repo=data.repo,
+        github_path=data.path,
+        github_blob_sha=document.blob_sha,
+        github_checked_at=document.checked_at,
+        enabled=data.enabled,
+        created_by_user_id=auth.user.id,
+        updated_by_user_id=auth.user.id,
+    )
+    try:
+        db.add(source)
+        db.flush()
+        append_business_event(
+            db, organization_id, auth.user.id, "knowledge.github_imported",
+            "knowledge_source", source.id,
+        )
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise ApiError(409, "github_document_exists", "Este arquivo já foi importado") from exc
+    return source_view(source, include_content=True)
+
+
+@router.post("/integrations/github-public/documents/{source_id}/refresh")
+def refresh_github_document(
+    organization_id: uuid.UUID, source_id: uuid.UUID, db: DB, auth: CsrfAuth,
+) -> dict[str, Any]:
+    """Refresh a pinned snapshot only after a successful bounded GitHub read."""
+    require_membership(db, auth, organization_id, MANAGERS)
+    source = find_source(db, organization_id, source_id)
+    if source.source_type != "github_public":
+        raise ApiError(422, "not_github_source", "Fonte não é do GitHub")
+    assert source.github_owner and source.github_repo and source.github_path
+    origin = (source.github_owner, source.github_repo, source.github_path)
+    document = fetch_public_document(*origin)
+    source = find_source(db, organization_id, source_id, lock=True)
+    if (source.github_owner, source.github_repo, source.github_path) != origin:
+        raise ApiError(409, "source_changed", "Fonte alterada durante a atualização")
+    changed = document.blob_sha != source.github_blob_sha
+    if changed:
+        source.content = document.content
+        source.github_blob_sha = document.blob_sha
+        source.revision += 1
+    source.github_checked_at = document.checked_at
+    source.updated_by_user_id = auth.user.id
+    append_business_event(
+        db, organization_id, auth.user.id, "knowledge.github_refreshed",
+        "knowledge_source", source.id, {"changed": changed, "revision": source.revision},
     )
     db.commit()
     return source_view(source, include_content=True)
