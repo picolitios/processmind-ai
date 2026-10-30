@@ -23,6 +23,11 @@ Data: 29/10/2026. Fonte externa de teste autorizada:
 - E2E na URL HTTPS pública temporária com Ollama `gemma3:4b`: o administrador
   importou o README real, habilitou o agente, recebeu resposta com citação
   documental e abriu a página interna da cópia, com origem e SHA visíveis.
+- Após atualizar a API da demo para o último commit, o gate dos 11 serviços
+  voltou a `status: ok`. Na URL pública, os cenários GitHub, agente flutuante
+  e fluxo completo de compras passaram com Ollama real. O primeiro ciclo
+  encontrou apenas um seletor ambíguo no teste do agente (`Título` versus
+  `Título para o agente`); após torná-lo exato, esse cenário passou novamente.
 
 ## Limites
 

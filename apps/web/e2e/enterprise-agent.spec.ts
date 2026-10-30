@@ -18,7 +18,7 @@ test("empresa habilita fonte e abre agente flutuante sem sair da tela", async ({
   await expect(page.getByRole("button", { name: "Abrir agente" })).toHaveCount(0);
 
   await page.getByRole("tab", { name: "Agente e fontes" }).click();
-  await page.getByLabel("Título").fill("Aprovação de compras");
+  await page.getByLabel("Título", { exact: true }).fill("Aprovação de compras");
   await page.getByLabel("Procedimento ou documentação").fill(
     "O líder analisa o pedido de compra e registra a aprovação antes da emissão.",
   );
