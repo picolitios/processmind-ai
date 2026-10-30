@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
 
 test("empresa habilita fonte e abre agente flutuante sem sair da tela", async ({ page }) => {
+  const liveModel = process.env.PROCESSMIND_REQUIRE_MODEL === "1";
+  test.setTimeout(liveModel ? 300_000 : 120_000);
   const id = Date.now().toString(36);
   await page.goto("/");
   await page.getByRole("button", { name: "Criar conta" }).click();
@@ -38,8 +40,22 @@ test("empresa habilita fonte e abre agente flutuante sem sair da tela", async ({
   await dialog.getByLabel("Sua pergunta").fill("Como funciona a aprovação de compras?");
   await dialog.getByRole("button", { name: "Enviar pergunta" }).click();
   await expect(dialog.getByText("Pergunta: Como funciona a aprovação de compras?", { exact: true })).toBeVisible();
+  if (liveModel) {
+    const turn = dialog.locator(".copilot-turn").first();
+    await expect(turn.getByText("Copiloto:")).toBeVisible({ timeout: 180_000 });
+    await expect(turn.getByRole("list", { name: "Fontes documentais" })
+      .getByRole("link", { name: /Aprovação de compras/ })).toBeVisible();
+  }
   await dialog.getByRole("button", { name: "Fechar agente" }).click();
   await expect(dialog).toBeHidden();
   await page.getByRole("button", { name: "Abrir agente" }).click();
   await expect(dialog.getByText("Pergunta: Como funciona a aprovação de compras?", { exact: true })).toBeVisible();
+  if (liveModel) {
+    await dialog.getByRole("list", { name: "Fontes documentais" })
+      .getByRole("link", { name: /Aprovação de compras/ }).click();
+    await expect(page.getByRole("heading", { name: "Aprovação de compras" })).toBeVisible();
+    await expect(page.locator(".knowledge-content").getByText(
+      "O líder analisa o pedido de compra e registra a aprovação antes da emissão.",
+    )).toBeVisible();
+  }
 });
